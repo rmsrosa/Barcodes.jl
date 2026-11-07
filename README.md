@@ -206,7 +206,7 @@ Barcode pattern:
 
 - [ ] Encoding in Code128 is not yet complete. It needs to be able to handle the directive FNC4 to access iso-latin ISO/IEC 8859-1 characters.
 
-- [ ] It can also be improved to generate GSI-128 encoding, which uses Code128 with the FNC1 directive.
+- [ ] It can also be improved to generate GS1-128 encoding, which uses Code128 with the FNC1 directive.
 
 - [ ] Add Documentation and simplify README.
 
