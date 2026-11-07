@@ -1,9 +1,9 @@
 module Barcodes
 
-using DataFrames
-using Images
+using Images: Gray
 
 include("code128_charset.jl")
+include("code128_symbols.jl")
 include("encoding.jl")
 include("pattern.jl")
 include("utils.jl")

@@ -10,76 +10,105 @@ abstract type Barcode end
 
 Composite type for Code128 barcode.
 
-Fields:
-    subtype::Symbol
-        Either :code128A, :code128B, :code128C, or just :code128 for the mixed subtypes.
-    message::String
-        String with the message encoded
-    code::Vector{String}
-        Encoded message.
+The only field is `values`, a vector with the values (from 0 to 106) of the symbols of the
+barcode, in the form `[START, data..., CHECKSUM, STOP]`. The other properties of the
+barcode are obtained from it with the functions [`message`](@ref), [`subtype`](@ref),
+[`codenames`](@ref), [`checksum`](@ref), and [`barcode_pattern`](@ref).
+
+A `Code128` can be created from
+
+* a message: `Code128(msg)`, or `Code128(msg, encoding_type)`, with `encoding_type` being
+  either `:code128` (the default, which chooses the code sets with the minimal number of symbols),
+  `:code128a`, `:code128b`, or `:code128c`;
+* a vector with the names of the symbols, as returned by `Barcodes.encode`;
+* a vector with the values of the symbols.
 """
 struct Code128 <: Barcode
-    subtype::Symbol
-    message::String
-    code::Vector{String}
-    
-    function Code128(msg::String, encoding_type::Symbol=:code128)
-        code = encode(msg, encoding_type)
+    values::Vector{UInt8}
 
-        a = any(∈(("START A", "CODE A", "SHIFT A")), code)
-        b = any(∈(("START B", "CODE B", "SHIFT B")), code)
-        c = any(∈(("START C", "CODE C", "SHIFT C")), code)
-        subtype = a + b + c > 1 ? :code128 :
-            a === true ? :code128a :
-            b === true ? :code128b :
-            c === true ? :code128c :
-            nothing
-        new(subtype, msg, code)
-    end
-
-    function Code128(code::Vector{String})
-        code = copy(code) # not to modify the input code
-        chk_sum = checksum(code, :code128)
-        m = match(r"CHECKSUM (\d+)", code[end-1])
-        m === nothing || parse(Int, m.captures[1]) == chk_sum || @warn "Code checksum does not match computed checksum; using computed checksum."
-        code[end-1] == "CHECKSUM" && (code[end-1] = "$(code[end-1]) $chk_sum")
-
-        msg = decode(code, :code128)
-
-        subtype = any(c -> (startswith(c, "SHIFT") | startswith(c, "CODE")), code) ? :code128 :
-            code[1] == "START A" ? :code128a :
-            code[1] == "START B" ? :code128b :
-            code[1] == "START C" ? :code128c :
-            throw(ArgumentError("Not a valid Code128"))
-
-        new(subtype, msg, code)
+    function Code128(values::AbstractVector{<:Integer})
+        all(v -> 0 ≤ v ≤ STOP_VALUE, values) ||
+            throw(ArgumentError("The values of Code128 symbols should be between 0 and 106"))
+        values = collect(UInt8, values)
+        _check_values(values)
+        return new(values)
     end
 end
+
+Code128(msg::AbstractString, encoding_type::Symbol = :code128) =
+    Code128(_encode_values(msg, encoding_type))
+
+Code128(code::AbstractVector{<:AbstractString}) = Code128(_parse_names(code))
+
+"""
+    message(barcode::Code128)
+
+Return the message encoded in the `barcode`.
+"""
+message(barcode::Code128) = _decode_values(barcode.values)
+
+"""
+    codenames(barcode::Code128)
+
+Return the names of the symbols of the `barcode`, as a vector of strings.
+"""
+codenames(barcode::Code128) = _names(barcode.values)
+
+"""
+    checksum(barcode::Code128)
+
+Return the checksum of the `barcode`.
+"""
+checksum(barcode::Code128) = Int(barcode.values[end-1])
+
+"""
+    subtype(barcode::Code128)
+
+Return either `:code128a`, `:code128b`, `:code128c`, or just `:code128` if the barcode
+mixes different code sets.
+"""
+function subtype(barcode::Code128)
+    values = barcode.values
+    set = active = _start_set(values[1])
+    used = Set{CodeSet}((set,))
+    for i in 2:length(values)-2
+        set, active = _step(set, active, values[i])
+        push!(used, set, active)
+    end
+    return length(used) > 1 ? :code128 :
+        set == SetA ? :code128a :
+        set == SetB ? :code128b :
+        :code128c
+end
+
+barcode_pattern(barcode::Code128) = _pattern_from_values(barcode.values)
+
+Base.:(==)(a::Code128, b::Code128) = a.values == b.values
+Base.hash(a::Code128, h::UInt) = hash(a.values, hash(:Code128, h))
 
 # Short one-line form. Used by `print`, `repr`, string interpolation, and when
 # the barcode is an element of an array or other container.
 function Base.show(io::IO, barcode::Code128)
-    print(io, "Code128(", repr(barcode.message), ")")
+    print(io, "Code128(", repr(message(barcode)), ")")
 end
 
 # Multi-line form. The REPL (and `display`) call this one for a top-level value.
 function Base.show(io::IO, ::MIME"text/plain", barcode::Code128)
-    pattern = barcode_pattern(barcode.code, barcode.subtype)
-    s = utf8block_pattern(pattern)
+    s = utf8block_pattern(barcode_pattern(barcode))
     if get(io, :detailed, false)
-        println(io, "Barcode type: ", uppercasefirst(string(barcode.subtype)))
+        println(io, "Barcode type: ", uppercasefirst(string(subtype(barcode))))
         print(io, "Message: ")
-        printstyled(io, barcode.message, reverse = true)
+        printstyled(io, message(barcode), reverse = true)
         println(io)
         println(io, "Code:")
-        for c in barcode.code
+        for c in codenames(barcode)
             println(io, '\t', c)
         end
         println(io, "Barcode pattern:")
         print(io, s)
     else
         print(io, "Code128: ")
-        printstyled(io, barcode.message, reverse = true)
+        printstyled(io, message(barcode), reverse = true)
         print(io, "\n\n", s)
     end
 end

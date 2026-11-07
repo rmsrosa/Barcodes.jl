@@ -145,6 +145,74 @@ end
         end
     end
 
+    @testset "Code128 ties" begin
+        # same number of symbols with different choices: prefer the start code set that has
+        # the first character, and CODE (rather than SHIFT) unless the next character returns
+        # to the current code set
+        @test Barcodes.encode("\x02Abc\x03", :code128) == [
+            "START A", "STX", "A", "CODE B", "b", "c", "CODE A", "ETX", "CHECKSUM 46", "STOP"
+        ]
+        @test Barcodes.encode("\x02abc1234\x03", :code128) == [
+            "START A", "STX", "CODE B", "a", "b", "c", "CODE C", "12", "34", "CODE A", "ETX",
+            "CHECKSUM 87", "STOP"
+        ]
+        @test Barcodes.encode("AaBC\x02", :code128) == [
+            "START B", "A", "a", "B", "C", "CODE A", "STX", "CHECKSUM 71", "STOP"
+        ]
+        @test Barcodes.encode("a\x01", :code128) == [
+            "START B", "a", "CODE A", "SOH", "CHECKSUM 51", "STOP"
+        ]
+        @test Barcodes.encode("ab\x01c", :code128) == [
+            "START B", "a", "b", "SHIFT A", "SOH", "c", "CHECKSUM 57", "STOP"
+        ]
+
+        # digits: three of them are not worth CODE C, an odd number at the beginning goes
+        # with START C and the last one with CODE B
+        @test Barcodes.encode("123", :code128) == ["START B", "1", "2", "3", "CHECKSUM 8", "STOP"]
+        @test Barcodes.encode("1234567", :code128) == [
+            "START C", "12", "34", "56", "CODE B", "7", "CHECKSUM 44", "STOP"
+        ]
+    end
+
+    @testset "Code128 is the shortest" begin
+        # independent shortest-path search, to compare with the number of symbols
+        function min_symbols(chars)
+            n = length(chars)
+            isa_(c) = c ≤ 95
+            isb_(c) = c ≥ 32
+            dig(c) = 48 ≤ c ≤ 57
+            queue = [(1, 1, k) for k in 1:3] # (cost, position, code set), after START
+            seen = Set{Tuple{Int,Int}}()
+            while !isempty(queue)
+                sort!(queue)
+                cost, i, k = popfirst!(queue)
+                (i, k) in seen && continue
+                push!(seen, (i, k))
+                i == n + 1 && return cost
+                c = chars[i]
+                k == 1 && isa_(c) && push!(queue, (cost + 1, i + 1, k))
+                k == 2 && isb_(c) && push!(queue, (cost + 1, i + 1, k))
+                k == 3 && i < n && dig(c) && dig(chars[i+1]) && push!(queue, (cost + 1, i + 2, k))
+                k == 1 && isb_(c) && push!(queue, (cost + 2, i + 1, k)) # SHIFT
+                k == 2 && isa_(c) && push!(queue, (cost + 2, i + 1, k)) # SHIFT
+                for j in 1:3
+                    j != k && push!(queue, (cost + 1, i, j)) # CODE
+                end
+            end
+        end
+
+        rng = TestLCG(0x0000abcd)
+        alphabet = vcat(
+            collect(Char(0):Char(31)), collect(' ':'~'), ['\x7f'], repeat(collect('0':'9'), 8)
+        )
+        for _ in 1:200
+            len = 1 + nextint!(rng) % 14
+            msg = String([alphabet[1 + nextint!(rng) % length(alphabet)] for _ in 1:len])
+            code = Barcodes.encode(msg, :code128)
+            @test length(code) - 2 == min_symbols(Int.(collect(msg))) # no CHECKSUM and STOP
+        end
+    end
+
     @testset "Encoding errors" begin
         # empty message
         for t in (:code128, :code128a, :code128b, :code128c)
@@ -533,17 +601,17 @@ end
 @testset "Code128 type" begin
     @testset "from a message" begin
         let b = Barcodes.Code128("12345678")
-            @test b.message == "12345678"
-            @test b.subtype == :code128c
-            @test b.code == Barcodes.encode("12345678", :code128)
+            @test Barcodes.message(b) == "12345678"
+            @test Barcodes.subtype(b) == :code128c
+            @test Barcodes.codenames(b) == Barcodes.encode("12345678", :code128)
         end
 
         let b = Barcodes.Code128("\x02abc1234\x03")
-            @test b.subtype == :code128
+            @test Barcodes.subtype(b) == :code128
         end
 
         let b = Barcodes.Code128("ABC", :code128a)
-            @test b.subtype == :code128a
+            @test Barcodes.subtype(b) == :code128a
         end
 
         @test_throws ArgumentError Barcodes.Code128("é")
@@ -552,18 +620,45 @@ end
 
     @testset "from a code" begin
         let b = Barcodes.Code128(Barcodes.encode("ABC", :code128a))
-            @test b.message == "ABC"
-            @test b.subtype == :code128a
+            @test Barcodes.message(b) == "ABC"
+            @test Barcodes.subtype(b) == :code128a
         end
 
         # the input code is not modified, and the checksum is filled in the stored code
         let code = ["START B", "A", "CHECKSUM", "STOP"]
             b = Barcodes.Code128(code)
             @test code == ["START B", "A", "CHECKSUM", "STOP"]
-            @test b.code[end-1] == "CHECKSUM 34"
-            @test b.message == "A"
-            @test b.subtype == :code128b
+            @test Barcodes.codenames(b)[end-1] == "CHECKSUM 34"
+            @test Barcodes.message(b) == "A"
+            @test Barcodes.subtype(b) == :code128b
         end
+    end
+
+    @testset "from values" begin
+        # START B, "A" (33), CHECKSUM (104 + 33) % 103 = 34, STOP
+        let b = Barcodes.Code128(UInt8[104, 33, 34, 106])
+            @test Barcodes.message(b) == "A"
+            @test Barcodes.checksum(b) == 34
+            @test Barcodes.subtype(b) == :code128b
+            @test Barcodes.codenames(b) == ["START B", "A", "CHECKSUM 34", "STOP"]
+            @test b == Barcodes.Code128("A")
+            @test hash(b) == hash(Barcodes.Code128("A"))
+            @test Barcodes.barcode_pattern(b) == Barcodes.barcode_pattern("A", :code128)
+        end
+
+        @test_throws ArgumentError Barcodes.Code128([104, 33, 35, 106]) # wrong checksum
+        @test_throws ArgumentError Barcodes.Code128([104, 33, 34]) # no STOP
+        @test_throws ArgumentError Barcodes.Code128([33, 33, 34, 106]) # no START
+        @test_throws ArgumentError Barcodes.Code128([104, 200, 34, 106]) # out of range
+        @test_throws ArgumentError Barcodes.Code128([104, 106, 106]) # too short
+    end
+
+    @testset "subtype" begin
+        @test Barcodes.subtype(Barcodes.Code128("ABC", :code128a)) == :code128a
+        @test Barcodes.subtype(Barcodes.Code128("abc", :code128b)) == :code128b
+        @test Barcodes.subtype(Barcodes.Code128("1234", :code128c)) == :code128c
+        @test Barcodes.subtype(Barcodes.Code128("ab\x01c")) == :code128 # uses SHIFT
+        @test Barcodes.subtype(Barcodes.Code128("1234567")) == :code128 # C and B
     end
 
     @testset "show" begin

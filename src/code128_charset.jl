@@ -1,13 +1,27 @@
-# 
+# Code 128 symbol set.
+#
+# Every symbol has a value from 0 to 106. The value is what enters the checksum and what
+# identifies the symbol, whichever code set (A, B or C) it is read in. What changes with the
+# code set is the meaning of the value, i.e. the character or the function it stands for:
+#
+#   0-95   data in sets A and B (32 characters shifted by 64 for the control characters in A)
+#   0-99   pairs of digits in set C
+#   96-102 function symbols, depending on the set (FNC 3, FNC 2, SHIFT, CODE C, CODE B/FNC 4,
+#          CODE A/FNC 4, FNC 1)
+#   103-105 START A, START B, START C
+#   106    STOP
 
 """
     const CODE128
 
-`CODE128` is a DataFrame with columns `value`, `code128a`, `code128b`, `code128c`, and
-`pattern`, containing the values and binary patterns for all three modes (or subtypes)
-`code128a`, `code128b` and `code128c` encodings.
+`CODE128` is a `NamedTuple` with fields `value`, `code128a`, `code128b`, `code128c`, and
+`pattern`, containing the values, the names of the symbols in each of the three code sets,
+and the binary patterns of the 107 symbols of the Code128 specification.
+
+This is the raw table. The package uses the derived constants `CODE128_NAMES`,
+`CODE128_PATTERNS`, `CODE128_NAME2VALUE` and `CODE128_PATTERN2VALUE` defined below.
 """
-const CODE128 = DataFrame(
+const CODE128 = (
     value = 0:106,
     code128a = [
         string.(Char(32):Char(95)) # ' ' to '_'
@@ -177,4 +191,45 @@ const CODE128 = DataFrame(
         "11010011100"
         "11000111010"
     ],
+)
+
+"""
+    const CODE128_PATTERNS
+
+Vector with the 11-module binary pattern of each symbol, indexed by `value + 1`.
+(The `STOP` symbol has 13 modules in the specification, which are here split in the pattern
+below, with 11 modules, and the final double bar, which is added when building the barcode.)
+"""
+const CODE128_PATTERNS = collect(String, CODE128.pattern)
+
+"""
+    const CODE128_NAMES
+
+Tuple with the names of the symbols in code sets A, B, and C (in this order), each a vector
+indexed by `value + 1`.
+"""
+const CODE128_NAMES = (
+    collect(String, CODE128.code128a),
+    collect(String, CODE128.code128b),
+    collect(String, CODE128.code128c),
+)
+
+"""
+    const CODE128_NAME2VALUE
+
+Tuple with a dictionary for each code set (A, B, and C, in this order), mapping the name of
+a symbol to its value.
+"""
+const CODE128_NAME2VALUE = map(
+    names -> Dict{String,Int}(name => v - 1 for (v, name) in enumerate(names)),
+    CODE128_NAMES,
+)
+
+"""
+    const CODE128_PATTERN2VALUE
+
+Dictionary mapping the 11-module pattern of a symbol to its value.
+"""
+const CODE128_PATTERN2VALUE = Dict{String,Int}(
+    p => v - 1 for (v, p) in enumerate(CODE128_PATTERNS)
 )

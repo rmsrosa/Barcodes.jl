@@ -78,7 +78,8 @@ One can also plot the barcode with `Plots`, using the utility function `Barcodes
 ```julia
 julia> using Plots
 
-julia> x, w = Barcodes.barcode_positions(pattern)([12, 15, 18, 23, 25, 29, 34, 38, 40, 45  …  56, 62, 64, 67, 71, 75, 78, 83, 87, 89], [2, 1, 3, 1, 2, 3, 1, 1, 2, 3  …  2, 1, 1, 1, 3, 2, 2, 3, 1, 2])
+julia> x, w = Barcodes.barcode_positions(pattern)
+([12, 15, 18, 23, 25, 29, 34, 38, 40, 45  …  56, 62, 64, 67, 71, 75, 78, 83, 87, 89], [2, 1, 3, 1, 2, 3, 1, 1, 2, 3  …  2, 1, 1, 1, 3, 2, 2, 3, 1, 2])
 
 julia> plot([x'; x' + w'], ones(2, length(x)), color = :black, fill = true, xlims = (1, length(pattern)),  ylims = (0, 1), border = :none, legend = nothing)
 ```
@@ -174,9 +175,11 @@ julia> FileIO.save("img/abc1234.png", img)
 
 ### A Code128 type
 
-More recently, a `Code128` type is being designed, which will allow for proper dispatch of methods.
+The `Code128` type stores a barcode as the vector of the integer values (from 0 to 106) of its symbols, `[START, data..., CHECKSUM, STOP]`, which is what enters the checksum and what is converted to bar patterns. The names of the symbols, such as `"START C"` or `"SHIFT B"`, are only used for display and for the interface based on vectors of strings (`encode`, `decode`, `barcode_pattern`, ...).
 
-Currently, we can create a `Code128` type by passing either a message, as a `String`, or a code, as a `Vector{String}`. The `show` method is extended for a better visualization of the barcode content. Unicode blocks are used for a simple view of the code bars.
+A `Code128` can be created from a message (a `String`), from a code (a `Vector{String}`, as returned by `encode`), or from the values of the symbols (a vector of integers). When created from a message, with the default `:code128` encoding type, the code sets (A, B, C) and the SHIFT and CODE symbols are chosen so that the barcode has the minimal number of symbols, following the conventions of the GS1 General Specifications when there is more than one way to do it.
+
+The properties of the barcode are obtained with the functions `Barcodes.message`, `Barcodes.subtype`, `Barcodes.codenames`, `Barcodes.checksum`, and `Barcodes.barcode_pattern`. The `show` method is extended for a better visualization of the barcode content. Unicode blocks are used for a simple view of the code bars.
 
 ```julia
 julia> Barcodes.Code128("12345678")
