@@ -202,6 +202,12 @@ Barcode pattern:
 
 ```
 
+## Related packages
+
+This package is a pure Julia package initiated in 2021 and, so far, limited to Code128. There is now the barcode package [`ZXingCPP.jl`](https://github.com/rakeshksr/ZXingCPP.jl), created in 2025, which is a wrapper for the fairly complete C++ library [`zxing-cpp`](https://github.com/zxing-cpp/zxing-cpp). It seems to be well integrated with [Images.jl](https://github.com/JuliaImages/Images.jl) and [OpenCV.jl](https://github.com/JuliaImages/OpenCV.jl).
+
+Specifically for QR codes, there is also the package [`QRCoders.jl`](https://juliaimages.org/QRCoders.jl/dev/). 
+
 ## To do
 
 - [ ] Encoding in Code128 is not yet complete. It needs to be able to handle the directive FNC4 to access iso-latin ISO/IEC 8859-1 characters.
@@ -212,7 +218,7 @@ Barcode pattern:
 
 - [ ] Register the package.
 
-- [ ] There are plenty of other barcode formats that can be implemented, both 1D and 2D, such as QR code.
+- [ ] There are plenty of other barcode formats that can be implemented here in pure julia, both 1D and 2D, such as QR code, but otherwise see the packages mentioned in [Related packages](#related-packages).
 
 ## License
 
