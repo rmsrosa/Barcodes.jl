@@ -232,10 +232,13 @@ function _barcode_depattern_code128(pattern::AbstractString)
 
         nextsubtype = subtype
 
-        p == CODE128.pattern[99] && (
-            (subtype == :code128a && (nextsubtype = :code128b)) ||
-            (subtype == :code128b && (nextsubtype = :code128a))
-        )
+        if p == CODE128.pattern[99] # SHIFT
+            if subtype == :code128a
+                nextsubtype = :code128b
+            elseif subtype == :code128b
+                nextsubtype = :code128a
+            end
+        end
         p == CODE128.pattern[100] && subtype in (:code128a, :code128b) &&
             (subtype = nextsubtype = :code128c)
         p == CODE128.pattern[101] && subtype in (:code128a, :code128c) &&

@@ -140,7 +140,7 @@ function _encode_code128(msg)
                 push!(code, "CODE A")
                 subtype = nextsubtype = :code128a
             end
-        elseif nextsubtype != :code128b && 96 ≤ Int(msg[ind]) ≤ 126 # check for lowercase
+        elseif nextsubtype != :code128b && 96 ≤ Int(msg[ind]) ≤ 127 # lowercase, `~`, and DEL
             if nextsubtype == :code128a && len_msg > ind && 0 ≤ Int(msg[ind+1]) ≤ 31
                 push!(code, "SHIFT B")
                 nextsubtype = :code128b
