@@ -185,7 +185,7 @@ Code128: 12345678
      ▐▌▌▐█ ▌█ █▌▐ ▐▐▌ █▌ ▌█▐▌ ▐▐ ▌ █▌█▐▌ █▌▌█      
 
 
-julia> show(IOContext(stdout, :compact => false), Barcodes.Code128("1234567"))
+julia> show(IOContext(stdout, :detailed => true), MIME("text/plain"), Barcodes.Code128("1234567"))
 Barcode type: Code128
 Message: 1234567
 Code:

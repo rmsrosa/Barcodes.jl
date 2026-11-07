@@ -261,7 +261,7 @@ function _decode_code128(code::Vector{String})
     nextsubtype = subtype    
     io = IOBuffer()
 
-        for c in code
+    for c in code
         if startswith(c, r"^CODE [ABC]$")
             nextsubtype = subtype = Symbol("code128$(lowercase(c[end]))")
         elseif startswith(c, r"^SHIFT [AB]$")

@@ -259,7 +259,7 @@ function barcode_depattern(pattern::AbstractString, encoding_type::Symbol)
             "Decoding type `$(repr(encoding_type))` not implemented"
         )
     )
-    encoding_type == :code128 && (code = _barcode_depattern_code128(pattern))
+    code = _barcode_depattern_code128(pattern)
 
     return code
 end
@@ -270,8 +270,7 @@ function barcode_decode(pattern::AbstractString, encoding_type::Symbol)
             "Decoding type `$(repr(encoding_type))` not implemented"
         )
     )
-    encoding_type == :code128 && (code = _barcode_depattern_code128(pattern))
-    
+    code = _barcode_depattern_code128(pattern)
     msg = decode(code, encoding_type)
 
     return msg
@@ -279,9 +278,9 @@ end
 
 # Experimental
 # Works nice in some places but in others there is a separation between the lines that breaks the image
-function utf8block_pattern(pattern::String)
+function utf8block_pattern(pattern::AbstractString)
     iseven(length(pattern)) || (pattern *= '0')
-    a = BitVector(c == '1' for c in pattern * '0'^isodd(length(pattern)))
+    a = BitVector(c == '1' for c in pattern)
     s = prod(getindex(" ▐▌█", [[1, 2, 5, 8][2*a[i] + a[i+1] + 1]]) for i in 1:2:length(a))
     return s
 end
