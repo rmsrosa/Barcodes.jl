@@ -67,7 +67,7 @@ julia> img = Barcodes.barcode_img(pattern)
 julia> FileIO.save("img/zipcode_img.png", img)
 ```
 
-Here is the result of saving the zip code above to a PNG file with `Barcodes.barcode_img("img/zipcode_img.png", pattern)`:
+Here is the result of saving the zip code above to a PNG file:
 
 ![Zip Code 12.345-678](img/zipcode_img.png)
 

@@ -38,6 +38,7 @@ struct Code128 <: Barcode
     end
 
     function Code128(code::Vector{String})
+        code = copy(code) # not to modify the input code
         chk_sum = checksum(code, :code128)
         m = match(r"CHECKSUM (\d+)", code[end-1])
         m === nothing || parse(Int, m.captures[1]) == chk_sum || @warn "Code checksum does not match computed checksum; using computed checksum."
@@ -45,7 +46,7 @@ struct Code128 <: Barcode
 
         msg = decode(code, :code128)
 
-        subtype = any(c -> (startswith("SHIFT", c) | startswith("CODE", c)), code) ? :code128 :
+        subtype = any(c -> (startswith(c, "SHIFT") | startswith(c, "CODE")), code) ? :code128 :
             code[1] == "START A" ? :code128a :
             code[1] == "START B" ? :code128b :
             code[1] == "START C" ? :code128c :
@@ -55,21 +56,30 @@ struct Code128 <: Barcode
     end
 end
 
-function Base.show(io::IO, barcode::Barcodes.Code128)
-    pattern = Barcodes.barcode_pattern(barcode.code, barcode.subtype)
-    s = Barcodes.utf8block_pattern(pattern)
-    if get(io, :compact, true)
-        print(io, "Code128: ")
-        printstyled(io, barcode.message, reverse = true)
-        print(io, "\n\n$s\n")
-    else
-        print(io, "Barcode type: $(uppercasefirst(string(barcode.subtype)))\n")
+# Short one-line form. Used by `print`, `repr`, string interpolation, and when
+# the barcode is an element of an array or other container.
+function Base.show(io::IO, barcode::Code128)
+    print(io, "Code128(", repr(barcode.message), ")")
+end
+
+# Multi-line form. The REPL (and `display`) call this one for a top-level value.
+function Base.show(io::IO, ::MIME"text/plain", barcode::Code128)
+    pattern = barcode_pattern(barcode.code, barcode.subtype)
+    s = utf8block_pattern(pattern)
+    if get(io, :detailed, false)
+        println(io, "Barcode type: ", uppercasefirst(string(barcode.subtype)))
         print(io, "Message: ")
         printstyled(io, barcode.message, reverse = true)
-        print(io, "\nCode:\n")
+        println(io)
+        println(io, "Code:")
         for c in barcode.code
-            print(io, "\t$c\n")
+            println(io, '\t', c)
         end
-        println(io, "Barcode pattern:\n$s")
+        println(io, "Barcode pattern:")
+        print(io, s)
+    else
+        print(io, "Code128: ")
+        printstyled(io, barcode.message, reverse = true)
+        print(io, "\n\n", s)
     end
 end

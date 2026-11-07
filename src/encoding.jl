@@ -2,39 +2,19 @@
 
 # Code128 encoding with subtype Code128A
 function _encode_code128a(msg::AbstractString)
-    @inbounds for i = 1:ncodeunits(msg)
-        codeunit(msg, i) ≤ 0x7f || 0xa0 ≤ codeunit(msg, i) ≤ 0xff || throw(
-            ArgumentError(
-                "The given `msg` contains characters outside the ranges 0 - 126 and " * 
-                "160 - 255 and cannot be encoded in Code128"
-            ),
-        )
-        codeunit(msg, i) ≤ 0x5f || 0xa0 ≤ codeunit(msg, i) ≤ 0xff || throw(
-            ArgumentError(
-                "The given ascii `msg` contains lowercase letters or characters outside " *
-                "the ranges 0 - 95 and 160 - 255 and cannot be encoded in subtype Code128A"
-            )
-        )
-        codeunit(msg, i) ≥ 0xa0 && throw(
-            ArgumentError(
-                "The given ascii `msg` contains extended ascii letters within the range " * 
-                "160 - 255 but encoding for that has not yet been implemented"
-            )
-        )
-    end
-    
+    isascii(msg) || throw(ArgumentError(
+        "`msg` must contain only ASCII characters (extended characters are not yet implemented)")
+    )
+    all(≤('_'), msg) || throw(ArgumentError(
+        "`msg` contains lowercase letters or DEL and cannot be encoded in subtype Code128A")
+    )
+
     code = ["START A"]
-    @inbounds for i = 1:ncodeunits(msg)
-        if 0x20 ≤ codeunit(msg, i) ≤ 0x5f
-            push!(code, string(msg[i]))
-        elseif codeunit(msg, i) ≤ 0x1f
-            push!(code, CODE128[codeunit(msg, i) + 0x41, :code128a])
-        else
-            throw(
-                ArgumentError(
-                    "Char in position $i in `msg` cannot be encoded in subtype Code128A"
-                )
-            )
+    for c in msg
+        if ' ' ≤ c ≤ '_'
+            push!(code, string(c))
+        else # control characters '\x00' to '\x1f'; anything else was rejected above
+            push!(code, CODE128[Int(c) + 65, :code128a])
         end
     end
     append!(code, ["CHECKSUM", "STOP"])
@@ -47,30 +27,16 @@ end
 
 # Code128 encoding with subtype Code128B
 function _encode_code128b(msg::AbstractString)
-    @inbounds for i = 1:ncodeunits(msg)
-        codeunit(msg, i) ≤ 0x7f || 0xa0 ≤ codeunit(msg, i) ≤ 0xff || throw(
-            ArgumentError(
-                "The given `msg` contains characters outside the ranges 0 - 126 and " * 
-                "160 - 255 and cannot be encoded in Code128"
-            ),
-        )
-        0x20 ≤ codeunit(msg, i) || 0xa0 ≤ codeunit(msg, i) ≤ 0xff || throw(
-            ArgumentError(
-                "The given ascii `msg` contains symbology characters or letters outside the ranges " *
-                "32 - 127 and 160 - 255 and cannot be fully encoded in subtype Code128B"
-            )
-        )
-        codeunit(msg, i) ≥ 0xa0 && throw(
-            ArgumentError(
-                "The given ascii `msg` contains extended ascii letters within the range " * 
-                "160 - 255 but encoding for that has not yet been implemented"
-            )
-        )
-    end
+    isascii(msg) || throw(ArgumentError(
+        "`msg` must contain only ASCII characters (extended characters are not yet implemented)")
+    )
+    all(≥(' '), msg) || throw(ArgumentError(
+        "`msg` contains control characters and cannot be encoded in subtype Code128B")
+    )
 
     code = [
         "START B"
-        string.(collect(msg))
+        [c == '\x7f' ? "DEL" : string(c) for c in msg]
         "CHECKSUM"
         "STOP"
     ]
@@ -83,20 +49,7 @@ end
 
 # Code128 encoding with subtype Code128C
 function _encode_code128c(msg::AbstractString)
-    @inbounds for i = 1:ncodeunits(msg)
-        codeunit(msg, i) ≤ 0x7f || 0xa0 ≤ codeunit(msg, i) ≤ 0xff || throw(
-            ArgumentError(
-                "The given `msg` contains characters outside the ranges 0 - 126 and " * 
-                "160 - 255 and cannot be encoded in Code128"
-            ),
-        )
-        codeunit(msg, i) ≥ 0xa0 && throw(
-            ArgumentError(
-                "The given ascii `msg` contains extended ascii letters within the range " * 
-                "160 - 255 but encoding for that has not yet been implemented"
-            )
-        )
-    end
+
     all(isdigit, msg) || throw(
         ArgumentError(
             "The given `msg` contains characters which are not digits and cannot " *
@@ -128,20 +81,9 @@ end
 # Use of Start, Code Set, and Shift symbols to Minimize Symbol Length (Informative),
 # pages 268 to 269."
 function _encode_code128(msg)
-    @inbounds for i = 1:ncodeunits(msg)
-        codeunit(msg, i) ≤ 0x7f || 0xa0 ≤ codeunit(msg, i) ≤ 0xff || throw(
-            ArgumentError(
-                "The given `msg` contains characters outside the ranges 0 - 126 and " * 
-                "160 - 255 and cannot be encoded in Code128"
-            ),
-        )
-        codeunit(msg, i) ≥ 0xa0 && throw(
-            ArgumentError(
-                "The given ascii `msg` contains extended ascii letters within the range " * 
-                "160 - 255 but encoding for that has not yet been implemented"
-            )
-        )
-    end
+    isascii(msg) || throw(ArgumentError(
+        "`msg` must contain only ASCII characters (extended characters are not yet implemented)")
+    )
     code = String[]
 
     len_msg = length(msg)
@@ -290,6 +232,7 @@ julia> code = encode("AaBC\x02", :code128)
 ```
 """
 function encode(msg::AbstractString, encoding_type::Symbol)
+    isempty(msg) && throw(ArgumentError("msg cannot be empty"))
     if encoding_type == :code128
         return _encode_code128(msg)
     elseif encoding_type == :code128a
@@ -301,7 +244,7 @@ function encode(msg::AbstractString, encoding_type::Symbol)
     else
         throw(
             ArgumentError(
-                "Encoding type `$(Meta.quot(mode))` not implemented"
+                "Encoding type `$(repr(encoding_type))` not implemented"
             )
         )
     end
@@ -316,31 +259,34 @@ function _decode_code128(code::Vector{String})
     )
     subtype = Symbol("code128$(lowercase(m.captures[1]))")
     nextsubtype = subtype    
-    msg = ""
+    io = IOBuffer()
 
-    for c in code
-        if startswith(c, r"^CODE [A|B|C]$")
+        for c in code
+        if startswith(c, r"^CODE [ABC]$")
             nextsubtype = subtype = Symbol("code128$(lowercase(c[end]))")
-        elseif startswith(c, r"^SHIFT [A|B|C]$")
+        elseif startswith(c, r"^SHIFT [AB]$")
             nextsubtype = Symbol("code128$(lowercase(c[end]))")
-        elseif nextsubtype == :code128a && !startswith(c, "CHECKSUM")
-            val = CODE128.value[CODE128.code128a .== c][1]
-            if val ≤ 0x3f # check if ≤ 63
-                msg *= Char(val + 0x20) # add 32
-            elseif val ≤ 0x5f # check if ≤ 95
-                msg *= Char(val - 0x40) # subtract 64
+        else
+            if nextsubtype == :code128a && !startswith(c, "CHECKSUM")
+                val = CODE128.value[CODE128.code128a .== c][1]
+                if val ≤ 0x3f # check if ≤ 63
+                    print(io, Char(val + 0x20)) # add 32
+                elseif val ≤ 0x5f # check if ≤ 95
+                    print(io, Char(val - 0x40)) # subtract 64
+                end
+            elseif nextsubtype == :code128b && !startswith(c, "CHECKSUM")
+                if CODE128.value[CODE128.code128b .== c][1] ≤ 94
+                    print(io, c)
+                elseif c == CODE128.code128b[96]
+                    print(io, '\x7f') # DEL
+                end
+            elseif nextsubtype == :code128c && all(isdigit, c)
+                print(io, c)
             end
-        elseif nextsubtype == :code128b && !startswith(c, "CHECKSUM")
-            if CODE128.value[CODE128.code128b .== c][1] ≤ 94
-                msg *= c
-            elseif c == CODE128.code128b[96]
-                msg *= "\x7f" # DEL
-            end
-        elseif nextsubtype == :code128c && all(isdigit, c)
-            msg *= c
+            nextsubtype = subtype
         end
     end
-    return msg
+    return String(take!(io)) 
 end
 
 """
@@ -354,7 +300,7 @@ Currently, only Code128 specification is available.
 # Examples
 
 ```jldoctest
-ulia> code = encode("000132", :code128)
+julia> code = encode("000132", :code128)
 6-element Vector{String}:
  "START C"
  "00"
@@ -392,12 +338,13 @@ julia> code = encode("\x02Abc\x03", :code128)
  "ETX"
  "CHECKSUM"
  "STOP"
+```
 """
 function decode(code::Vector{String}, encoding_type::Symbol)
     encoding_type in (:code128, :code128a, :code128b, :code128c) ||
         throw(
             ArgumentError(
-                "Decoding type `$(Meta.quot(mode))` not implemented"
+                "Decoding type `$(repr(encoding_type))` not implemented"
             )
         )
     return _decode_code128(code::Vector{String})
@@ -413,17 +360,17 @@ function _checksum_code128(code::Vector{String})
 
     nextsubtype = subtype = Symbol("code128$(lowercase(first(code)[end]))")
 
-    nrow = findfirst(==(first(code)), CODE128[:, subtype])
+    nrow = findfirst(==(first(code)), CODE128[!, subtype])
     chk_sum = CODE128.value[nrow]
     multiplier = 0
 
-    # skip first START [A|B|C]
+    # skip first START [ABC]
     # and stop before CHECKSUM and STOP
     for c in code[2:end-2]
 
         multiplier += 1
 
-        nrow = findfirst(==(c), CODE128[:, nextsubtype])
+        nrow = findfirst(==(c), CODE128[!, nextsubtype])
         nrow !== nothing || throw(
             ArgumentError(
                 "$c is not a valid CODE128 code",
@@ -438,7 +385,6 @@ function _checksum_code128(code::Vector{String})
         c == "CODE A" && (subtype = nextsubtype = :code128a)
         c == "CODE B" && (subtype = nextsubtype = :code128b)
         c == "CODE C" && (subtype = nextsubtype = :code128c)
-        c == "FNC 1" && (subtype = nextsubtype = :code128a)
     end
 
     chk_sum = chk_sum % 103
@@ -463,7 +409,7 @@ function checksum(code::Vector{String}, encoding_type::Symbol)
     encoding_type in (:code128, :code128a, :code128b, :code128c) ||
         throw(
             ArgumentError(
-                "Decoding type `$(Meta.quot(mode))` not implemented"
+                "Decoding type `$(repr(encoding_type))` not implemented"
             )
         )
     

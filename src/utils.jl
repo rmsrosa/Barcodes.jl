@@ -2,7 +2,7 @@
     barcode_img(pattern; img_height = 50)
 
 Return an image of type `Matrix{Gray{Bool}}` where the number of rows is specified
-by `img_height` and where the rows are filled with the `binary_pattern`. Displaying
+by `img_height` and where the rows are filled with the `pattern`. Displaying
 the image reveals the barcode.
 
 You can save the generated image via `FileIO.save`, using any format accepted by `FileIO`.
@@ -28,7 +28,7 @@ function barcode_positions(pattern::AbstractString)
     while ind ≤ length(pattern)
         if pattern[ind] == '1'
             push!(x, ind)
-            next_ind = findnext(==('0'), pattern, ind)
+            next_ind = something(findnext(==('0'), pattern, ind), length(pattern) + 1)
             push!(w, next_ind - ind)
             ind = next_ind
         else
@@ -39,15 +39,16 @@ function barcode_positions(pattern::AbstractString)
 end
 
 function barcode_widths(pattern::AbstractString)
-    w = ""
+    io = IOBuffer()
 
     ind = findfirst(==('1'), pattern)
     while ind !== nothing
         c = pattern[ind]
         next_ind = findnext(!=(c), pattern, ind)
-        next_ind !== nothing && (w *= string(next_ind - ind))
+        next_ind !== nothing && print(io, next_ind - ind)
         ind = next_ind
     end
+    w = String(take!(io))
     w = w[begin:end-1] # drop the ending `11`, which is a bar with width 2
     return w
 end

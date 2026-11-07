@@ -1,6 +1,8 @@
 using Barcodes
 using Test
 using FileIO
+
+ENV["GKSwstype"] = "100" # it runs Plots without a display, but it is not needed for the tests, so it will be removed once Documentation is ready
 using Plots # it is in runtests.jl just to generate the image for README
             # it will be removed from tests once Documentation is ready
 
@@ -328,12 +330,24 @@ end
             zip_code = replace(zip_code, r"\s|\.|\-" => "")
             pattern = Barcodes.barcode_pattern(zip_code, :code128)
             img = Barcodes.barcode_img(pattern)
-            @test FileIO.save("../img/zipcode_img.png", img) === nothing
+            mktempdir() do dir
+                path = joinpath(dir, "zipcode_img.png")
+                FileIO.save(path, img)
+                @test isfile(path)
+                @test filesize(path) > 0
+                @test FileIO.load(path) == img
+            end
         end
 
         let pattern = Barcodes.barcode_pattern("\x02abc1234\x03", :code128)
             img = Barcodes.barcode_img(pattern)
-            @test FileIO.save("../img/abc1234.png", img) === nothing
+            mktempdir() do dir
+                path = joinpath(dir, "abc1234.png")
+                FileIO.save(path, img)
+                @test isfile(path)
+                @test filesize(path) > 0
+                @test FileIO.load(path) == img
+            end
         end
     end
 
@@ -342,12 +356,17 @@ end
             zip_code = replace(zip_code, r"\s|\.|\-" => "")
             pattern = Barcodes.barcode_pattern(zip_code, :code128)
             x, w = Barcodes.barcode_positions(pattern)
-            Plots.plot(
+            p = Plots.plot(
                 [x'; x' + w'], ones(2, length(x)), color = :black, fill = true,
                 xlims = (1, length(pattern)),  ylims = (0, 1), border = :none,
                 legend = nothing, size = (400, 150)
             )
-            @test Plots.savefig("../img/zipcode_plot.png") === nothing
+            mktempdir() do dir
+                path = joinpath(dir, "zipcode_plot.png")
+                Plots.savefig(p, path)
+                @test isfile(path)
+                @test filesize(path) > 0
+            end
         end
     end
 end
