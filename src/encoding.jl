@@ -298,8 +298,6 @@ or two to switch an extended mode on, whatever uses fewer symbols. In the subtyp
 # Examples
 
 ```jldoctest
-julia> using Barcodes
-
 julia> code = Barcodes.encode("000132", :code128c)
 6-element Vector{String}:
  "START C"
@@ -316,6 +314,14 @@ julia> code = Barcodes.encode("ABC", :code128a)
  "B"
  "C"
  "CHECKSUM 0"
+ "STOP"
+
+julia> code = Barcodes.encode("é", :code128)
+5-element Vector{String}:
+ "START B"
+ "FNC 4"
+ "i"
+ "CHECKSUM 41"
  "STOP"
 ```
 """
@@ -334,8 +340,6 @@ Currently, only Code128 specification is available.
 # Examples
 
 ```jldoctest
-julia> using Barcodes
-
 julia> code = Barcodes.encode("\\x02ABC\\x03", :code128)
 8-element Vector{String}:
  "START A"
@@ -369,6 +373,13 @@ value is compared against the computed checksum and a warning is showed in case 
 
 The only encoding types implemented so far are `:code128`, `:code128a`, `:code128b`, and
 `:code128c`, but the subtypes are not enforced.
+
+# Examples
+
+```jldoctest
+julia> Barcodes.checksum(["START C", "00", "01", "32", "CHECKSUM", "STOP"], :code128)
+100
+```
 """
 function checksum(code::AbstractVector{<:AbstractString}, encoding_type::Symbol)
     _check_encoding_type(encoding_type)

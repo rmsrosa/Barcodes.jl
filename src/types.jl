@@ -22,6 +22,37 @@ A `Code128` can be created from
   `:code128a`, `:code128b`, or `:code128c`;
 * a vector with the names of the symbols, as returned by `Barcodes.encode`;
 * a vector with the values of the symbols.
+
+It throws an `ArgumentError` if the message cannot be encoded, or if the code is not a valid
+Code128 (for instance, if it does not start with a `START` symbol, or if the checksum is wrong).
+
+# Examples
+
+```jldoctest
+julia> b = Barcodes.Code128("12345678");
+
+julia> println(b)
+Code128("12345678")
+
+julia> b.values
+7-element Vector{UInt8}:
+ 0x69
+ 0x0c
+ 0x22
+ 0x38
+ 0x4e
+ 0x2f
+ 0x6a
+
+julia> Barcodes.Code128(Barcodes.codenames(b)) == b
+true
+
+julia> Barcodes.Code128(b.values) == b
+true
+
+julia> println(Barcodes.Code128("ABC", :code128a))
+Code128("ABC")
+```
 """
 struct Code128 <: Barcode
     values::Vector{UInt8}
@@ -44,6 +75,13 @@ Code128(code::AbstractVector{<:AbstractString}) = Code128(_parse_names(code))
     message(barcode::Code128)
 
 Return the message encoded in the `barcode`.
+
+# Examples
+
+```jldoctest
+julia> Barcodes.message(Barcodes.Code128("\\x02abc1234\\x03"))
+"\\x02abc1234\\x03"
+```
 """
 message(barcode::Code128) = _decode_values(barcode.values)
 
@@ -51,13 +89,39 @@ message(barcode::Code128) = _decode_values(barcode.values)
     codenames(barcode::Code128)
 
 Return the names of the symbols of the `barcode`, as a vector of strings.
+
+# Examples
+
+```jldoctest
+julia> Barcodes.codenames(Barcodes.Code128("Héllo"))
+9-element Vector{String}:
+ "START B"
+ "H"
+ "FNC 4"
+ "i"
+ "l"
+ "l"
+ "o"
+ "CHECKSUM 73"
+ "STOP"
+```
 """
 codenames(barcode::Code128) = _names(barcode.values)
 
 """
     checksum(barcode::Code128)
 
-Return the checksum of the `barcode`.
+Return the checksum of the `barcode`, an integer between 0 and 102. It is the remainder of the
+division by 103 of the value of the `START` symbol plus the sum of the values of the other
+symbols, each one multiplied by its position (starting with 1 for the first symbol after
+`START`).
+
+# Examples
+
+```jldoctest
+julia> Barcodes.checksum(Barcodes.Code128("12345678"))
+47
+```
 """
 checksum(barcode::Code128) = Int(barcode.values[end-1])
 
@@ -66,6 +130,19 @@ checksum(barcode::Code128) = Int(barcode.values[end-1])
 
 Return either `:code128a`, `:code128b`, `:code128c`, or just `:code128` if the barcode
 mixes different code sets.
+
+# Examples
+
+```jldoctest
+julia> Barcodes.subtype(Barcodes.Code128("12345678"))
+:code128c
+
+julia> Barcodes.subtype(Barcodes.Code128("ABC", :code128a))
+:code128a
+
+julia> Barcodes.subtype(Barcodes.Code128("abc1234"))
+:code128
+```
 """
 function subtype(barcode::Code128)
     values = barcode.values
@@ -81,6 +158,19 @@ function subtype(barcode::Code128)
         :code128c
 end
 
+"""
+    barcode_pattern(barcode::Code128)
+
+Return the barcode pattern of the `barcode`, a string of 0's and 1's, as in
+[`barcode_pattern(::AbstractString, ::Symbol)`](@ref).
+
+# Examples
+
+```jldoctest
+julia> Barcodes.barcode_pattern(Barcodes.Code128("ABC")) == Barcodes.barcode_pattern("ABC", :code128)
+true
+```
+"""
 barcode_pattern(barcode::Code128) = _pattern_from_values(barcode.values)
 
 Base.:(==)(a::Code128, b::Code128) = a.values == b.values

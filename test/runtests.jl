@@ -2,10 +2,6 @@ using Barcodes
 using Test
 using FileIO
 
-ENV["GKSwstype"] = "100" # it runs Plots without a display, but it is not needed for the tests, so it will be removed once Documentation is ready
-using Plots # it is in runtests.jl just to generate the image for README
-            # it will be removed from tests once Documentation is ready
-
 # Tiny deterministic pseudo-random generator (a linear congruential generator),
 # so that the randomized tests below are reproducible without depending on `Random`.
 mutable struct TestLCG
@@ -831,25 +827,6 @@ end
                 @test isfile(path)
                 @test filesize(path) > 0
                 @test FileIO.load(path) == img
-            end
-        end
-    end
-
-    @testset "Plot barcode" begin
-        let zip_code = "12.345-678"
-            zip_code = replace(zip_code, r"\s|\.|\-" => "")
-            pattern = Barcodes.barcode_pattern(zip_code, :code128)
-            x, w = Barcodes.barcode_positions(pattern)
-            p = Plots.plot(
-                [x'; x' + w'], ones(2, length(x)), color = :black, fill = true,
-                xlims = (1, length(pattern)),  ylims = (0, 1), border = :none,
-                legend = nothing, size = (400, 150)
-            )
-            mktempdir() do dir
-                path = joinpath(dir, "zipcode_plot.png")
-                Plots.savefig(p, path)
-                @test isfile(path)
-                @test filesize(path) > 0
             end
         end
     end

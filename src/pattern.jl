@@ -28,8 +28,6 @@ the checksum, which should be either `CHECKSUM` or `CHECKSUM n`, and it is alway
 # Examples
 
 ```jldoctest
-julia> using Barcodes
-
 julia> pattern = Barcodes.barcode_pattern(
            ["START C", "00", "01", "32", "CHECKSUM", "STOP"],
            :code128
@@ -62,6 +60,19 @@ a combination of them. It throws an `ArgumentError` if not possible to do so.
 
 The pattern is returned as a string of 0's and 1's, with the proper quiet zones, and the
 `START`, `STOP`, checksum, and ending bar patterns.
+
+# Examples
+
+```jldoctest
+julia> Barcodes.barcode_pattern("ABC", :code128)
+"000000000001101001000010100011000100010110001000100011011001101100110001110101100000000000"
+
+julia> Barcodes.barcode_pattern("ABC", :code128b) == Barcodes.barcode_pattern("ABC", :code128)
+true
+
+julia> Barcodes.barcode_pattern("ABC", :code128a) == Barcodes.barcode_pattern("ABC", :code128)
+false
+```
 """
 function barcode_pattern(msg::AbstractString, encoding_type::Symbol)
     return _pattern_from_values(_encode_values(msg, encoding_type))
@@ -116,6 +127,21 @@ Return the code, a vector with the names of the symbols, for the given binary `p
 
 It throws an `ArgumentError` if the `pattern` is not a valid Code128 pattern, including when
 its checksum is wrong.
+
+# Examples
+
+```jldoctest
+julia> pattern = Barcodes.barcode_pattern("ABC", :code128);
+
+julia> Barcodes.barcode_depattern(pattern, :code128)
+6-element Vector{String}:
+ "START B"
+ "A"
+ "B"
+ "C"
+ "CHECKSUM 1"
+ "STOP"
+```
 """
 function barcode_depattern(pattern::AbstractString, encoding_type::Symbol)
     _check_encoding_type(encoding_type)
@@ -129,14 +155,38 @@ Return the message encoded in the given binary `pattern`.
 
 It throws an `ArgumentError` if the `pattern` is not a valid Code128 pattern, including when
 its checksum is wrong.
+
+# Examples
+
+```jldoctest
+julia> pattern = Barcodes.barcode_pattern("Héllo", :code128);
+
+julia> Barcodes.barcode_decode(pattern, :code128)
+"Héllo"
+```
 """
 function barcode_decode(pattern::AbstractString, encoding_type::Symbol)
     _check_encoding_type(encoding_type)
     return _decode_values(_values_from_pattern(pattern))
 end
 
-# Experimental
-# Works nice in some places but in others there is a separation between the lines that breaks the image
+"""
+    utf8block_pattern(pattern)
+
+Return a string that draws the `pattern` with Unicode block characters, two modules per
+character, for a simple view of the barcode in the terminal. This is what the `show` method of
+[`Code128`](@ref) uses.
+
+This is experimental: in some terminals and fonts there is a gap between consecutive lines,
+which breaks the image.
+
+# Examples
+
+```jldoctest
+julia> Barcodes.utf8block_pattern("0110100111000")
+"▐▌▌▐█  "
+```
+"""
 function utf8block_pattern(pattern::AbstractString)
     iseven(length(pattern)) || (pattern *= '0')
     a = BitVector(c == '1' for c in pattern)

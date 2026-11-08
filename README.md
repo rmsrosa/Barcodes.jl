@@ -1,10 +1,15 @@
 # Barcodes
 
+[![CI](https://github.com/rmsrosa/barcodes.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/rmsrosa/barcodes.jl/actions/workflows/CI.yml)
+[![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://rmsrosa.github.io/barcodes.jl/dev/)
+
 A [Code128](https://en.wikipedia.org/wiki/Code_128) barcode generator (see also [The 128 code](http://grandzebu.net/informatique/codbar-en/code128.htm) and [How Barcodes Work](https://courses.cs.washington.edu/courses/cse370/01au/minirproject/BarcodeBattlers/barcodes.html)).
 
 This package is under development and is not yet registered.
 
 Currently, only code128 is being implemented, but other barcodes might be implemented in the future. Contributions are welcome!
+
+The documentation, with a manual and the list of functions, is at <https://rmsrosa.github.io/barcodes.jl/dev/>. The examples below are a quick tour.
 
 ## Methods
 
@@ -53,7 +58,7 @@ julia> code = Barcodes.encode(zip_code, :code128)
  "34"
  "56"
  "78"
- "CHECKSUM"
+ "CHECKSUM 47"
  "STOP"
 ```
 
@@ -160,7 +165,7 @@ julia> code = Barcodes.encode(msg, :code128)
  "34"
  "CODE A"
  "ETX"
- "CHECKSUM"
+ "CHECKSUM 87"
  "STOP"
 
 julia> pattern = Barcodes.barcode_pattern(code, :code128)
