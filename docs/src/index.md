@@ -2,11 +2,11 @@
 
 A pure [Julia](https://julialang.org) generator of [Code 128](https://en.wikipedia.org/wiki/Code_128) barcodes, with no dependencies other than a type for the pixels of the images.
 
-!!! note
-    This package is under development and is not yet registered. Install it with
-    ```julia
-    julia> using Pkg; Pkg.add(url = "https://github.com/rmsrosa/Barcodes.jl")
-    ```
+## Installation
+
+```julia
+julia> using Pkg; Pkg.add("Barcodes")
+```
 
 With it, you can
 

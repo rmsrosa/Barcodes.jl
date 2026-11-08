@@ -8,11 +8,15 @@
 
 A pure-Julia [Code128](https://en.wikipedia.org/wiki/Code_128) barcode generator.
 
-*This package is under development and is not yet registered.*
-
-Currently, only [Code128](https://en.wikipedia.org/wiki/Code_128) is implemented, including the extended (Latin-1) characters and the [GS1-128](#gs1-128) variant. For other barcodes, see [Related packages](#related-packages). 
+Only [Code128](https://en.wikipedia.org/wiki/Code_128) is implemented, including the extended (Latin-1) characters and the [GS1-128](#gs1-128) variant. For other barcodes, see [Related packages](#related-packages). 
 
 The documentation, with a manual and the list of functions, is at <https://rmsrosa.github.io/Barcodes.jl/dev/>. The examples below are a quick tour. For more detailed information on [Code128](https://en.wikipedia.org/wiki/Code_128), see [The 128 code](http://grandzebu.net/informatique/codbar-en/code128.htm) and [How Barcodes Work](https://courses.cs.washington.edu/courses/cse370/01au/minirproject/BarcodeBattlers/barcodes.html)
+
+## Installation
+
+```julia
+julia> using Pkg; Pkg.add("Barcodes")
+```
 
 ## Methods
 
