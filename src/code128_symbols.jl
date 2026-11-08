@@ -16,6 +16,12 @@ The three code sets of Code128.
 const STOP_VALUE = 106
 const SHIFT_VALUE = 98
 
+# Value of FNC 1, which is the same in all code sets. It is the character GS (group separator,
+# U+001D) in the messages, except right after START, where it marks a GS1-128 barcode and is
+# not part of the message.
+const FNC1_VALUE = 102
+const _GS = '\x1d'
+
 # Value of FNC 4 in the code sets A (101) and B (100); there is no FNC 4 in the code set C.
 # One FNC 4 adds 128 to the code of the next data character (extended ASCII, ISO/IEC 8859-1),
 # and two consecutive FNC 4 switch the extended mode on, or off, for all the following characters.
@@ -187,7 +193,9 @@ function _decode_values(values::AbstractVector{<:Integer})
     next_extended = false # a single FNC 4 waiting for the next data character
     for i in 2:length(values)-2
         v = Int(values[i])
-        if active == SetC
+        if v == FNC1_VALUE
+            i > 2 && print(io, _GS)
+        elseif active == SetC
             v ≤ 99 && print(io, lpad(v, 2, '0'))
         elseif v ≤ 95
             c = Int(active == SetA ? _char_a(v) : _char_b(v))
@@ -203,7 +211,7 @@ function _decode_values(values::AbstractVector{<:Integer})
                 next_extended = true
             end
         end
-        # the other symbols (SHIFT, CODE A/B/C, FNC 1-3) do not have a character
+        # the other symbols (SHIFT, CODE A/B/C, FNC 2-3) do not have a character
         set, active = _step(set, active, v)
     end
     return String(take!(io))

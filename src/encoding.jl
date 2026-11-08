@@ -4,7 +4,24 @@
 # The functions `encode`, `decode`, and `checksum` at the end of this file are the interface
 # based on the names of the symbols.
 
-const CODE128_TYPES = (:code128, :code128a, :code128b, :code128c)
+const CODE128_TYPES = (:code128, :code128a, :code128b, :code128c, :gs1128)
+
+# The function character FNC 1 (value 102 in all code sets) is an element of the vector of
+# characters, with a number outside of Latin-1, together with the ones of the message. In the
+# messages, FNC 1 is represented by the character GS (group separator, U+001D), as in the
+# GS1 "element strings".
+const _FNC1 = 256
+
+# GS1-128 has FNC 1 right after START
+_is_gs1(values::AbstractVector{<:Integer}) = length(values) ≥ 4 && values[2] == FNC1_VALUE
+
+# The values of a GS1-128 barcode should have FNC 1 right after START
+function _check_values_type(values::AbstractVector{<:Integer}, encoding_type::Symbol)
+    encoding_type == :gs1128 && !_is_gs1(values) && throw(
+        ArgumentError("Not a GS1-128: the symbol after START should be FNC 1")
+    )
+    return nothing
+end
 
 function _check_encoding_type(encoding_type::Symbol)
     encoding_type in CODE128_TYPES || throw(
@@ -141,18 +158,25 @@ function _encode_values_auto(chars::Vector{Int}, allowed = (SetA, SetB, SetC))
         x = c ≥ 128 ? 2 : 1 # extended mode of the character
         b = c & 0x7f # base character
         run[i] = _isdigit(c) ? run[i+1] + 1 : 0
-        for e in 1:2
-            fnc4 = x == e ? 0 : 1 # a single FNC 4 is needed
-            for k in 1:2
-                ok[k] || continue
-                if _in_set(b, k)
-                    h[i, k, e] = fnc4 + 1 + f[i+1, k, e]
-                elseif ok[3-k] && _in_set(b, 3 - k)
-                    h[i, k, e] = fnc4 + 2 + f[i+1, k, e] # SHIFT and the character
-                end
+        if c == _FNC1
+            # FNC 1 is in all code sets, does not change the state, and breaks the run of digits
+            for e in 1:2, k in 1:3
+                ok[k] && (h[i, k, e] = 1 + f[i+1, k, e])
             end
-            if ok[3] && i < n && _isdigit(c) && _isdigit(chars[i+1])
-                h[i, 3, e] = 1 + f[i+2, 3, e] # a pair of digits
+        else
+            for e in 1:2
+                fnc4 = x == e ? 0 : 1 # a single FNC 4 is needed
+                for k in 1:2
+                    ok[k] || continue
+                    if _in_set(b, k)
+                        h[i, k, e] = fnc4 + 1 + f[i+1, k, e]
+                    elseif ok[3-k] && _in_set(b, 3 - k)
+                        h[i, k, e] = fnc4 + 2 + f[i+1, k, e] # SHIFT and the character
+                    end
+                end
+                if ok[3] && i < n && _isdigit(c) && _isdigit(chars[i+1])
+                    h[i, 3, e] = 1 + f[i+2, 3, e] # a pair of digits
+                end
             end
         end
         for e in 1:2, k in 1:3
@@ -169,12 +193,13 @@ function _encode_values_auto(chars::Vector{Int}, allowed = (SetA, SetB, SetC))
     # Start code set, with the extended mode off
     start_cost = [ok[k] ? 1 + f[1, k, 1] : INF for k in 1:3]
     best_start = minimum(start_cost)
-    k = if run[1] ≥ 4 && start_cost[3] == best_start
+    s = something(findfirst(!=(_FNC1), chars), 1) # the first character, after a leading FNC 1
+    k = if run[s] ≥ 4 && start_cost[3] == best_start
         3
     else
         # among the best ones, prefer a code set that has the first character
         candidates = [k for k in (2, 1, 3) if start_cost[k] == best_start]
-        ind = findfirst(k -> k ≤ 2 && _in_set(chars[1] & 0x7f, k), candidates)
+        ind = findfirst(k -> k ≤ 2 && _in_set(chars[s] & 0x7f, k), candidates)
         candidates[something(ind, 1)]
     end
     start = CodeSet(k)
@@ -206,7 +231,7 @@ function _encode_values_auto(chars::Vector{Int}, allowed = (SetA, SetB, SetC))
             continue
         end
 
-        is_shift = k ≤ 2 && !_in_set(b, k)
+        is_shift = c != _FNC1 && k ≤ 2 && !_in_set(b, k)
 
         # the best way of changing the code set before the character i, preferring, in case
         # of a tie, a code set that has the character i (rather than needing a SHIFT)
@@ -238,6 +263,9 @@ function _encode_values_auto(chars::Vector{Int}, allowed = (SetA, SetB, SetC))
         if use_latch
             push!(body, _latch_value(CodeSet(latch_to)))
             k = latch_to
+        elseif c == _FNC1
+            push!(body, FNC1_VALUE)
+            i += 1
         elseif k == 3
             push!(body, 10 * (chars[i] - 48) + chars[i+1] - 48)
             i += 2
@@ -264,6 +292,7 @@ CHECKSUM, and STOP symbols.
 """
 function _encode_values(msg::AbstractString, encoding_type::Symbol)
     _check_encoding_type(encoding_type)
+    encoding_type == :gs1128 && return _encode_values_gs1(msg)
     chars = _message_chars(msg)
     if encoding_type == :code128
         return _encode_values_auto(chars)
@@ -288,6 +317,13 @@ If `encoding_type` is either `:code128a`, `:code128b`, or `:code128c`, it return
 encoding following the corresponding subtype. If `encoding_type` is `:code128`, it will
 return an optimized encoding, possibly mixing different subtypes, with the minimal number
 of symbols.
+
+If `encoding_type` is `:gs1128`, it returns the encoding of a GS1-128, which is a `:code128`
+with the function character FNC 1 right after the START symbol and, in the middle of the
+message, in the place of each character GS (`'\\x1d'`). The `msg` is either the concatenation of
+the element strings, with the GS separating the ones that do not have a predefined length,
+or the human readable form, with the Application Identifiers between parentheses, as in
+[`gs1_element_string`](@ref). Only the ASCII characters from space to `~` are allowed.
 
 The `msg` needs to be a non-empty string of Latin-1 characters (ISO/IEC 8859-1, that is, code
 points up to `'\u00ff'`) to be encoded, otherwise the method throws an `ArgumentError`. The
@@ -314,6 +350,21 @@ julia> code = Barcodes.encode("ABC", :code128a)
  "B"
  "C"
  "CHECKSUM 0"
+ "STOP"
+
+julia> Barcodes.encode("(01)09501101530003", :gs1128)
+12-element Vector{String}:
+ "START C"
+ "FNC 1"
+ "01"
+ "09"
+ "50"
+ "11"
+ "01"
+ "53"
+ "00"
+ "03"
+ "CHECKSUM 71"
  "STOP"
 
 julia> code = Barcodes.encode("é", :code128)
@@ -357,7 +408,9 @@ julia> Barcodes.decode(code, :code128)
 """
 function decode(code::AbstractVector{<:AbstractString}, encoding_type::Symbol)
     _check_encoding_type(encoding_type)
-    return _decode_values(_parse_names(code))
+    values = _parse_names(code)
+    _check_values_type(values, encoding_type)
+    return _decode_values(values)
 end
 
 """
@@ -371,8 +424,8 @@ The returned checksum is of type `Int`.
 If the given code already contains the value of the checksum, as in `"CHECKSUM 34"`, this
 value is compared against the computed checksum and a warning is showed in case they differ.
 
-The only encoding types implemented so far are `:code128`, `:code128a`, `:code128b`, and
-`:code128c`, but the subtypes are not enforced.
+The only encoding types implemented so far are `:code128`, `:code128a`, `:code128b`,
+`:code128c`, and `:gs1128`, but the subtypes are not enforced.
 
 # Examples
 

@@ -353,6 +353,181 @@ end
     end
 end
 
+@testset "GS1-128" begin
+    @testset "gs1_element_string" begin
+        @test Barcodes.gs1_element_string("(01)09501101530003") == "0109501101530003"
+        # fixed-length element strings are not followed by a separator
+        @test Barcodes.gs1_element_string("(01)09501101530003(17)140704") == "010950110153000317140704"
+        @test Barcodes.gs1_element_string("(11)200101(15)210101(20)12") == "112001011521010120" * "12"
+        @test Barcodes.gs1_element_string("(3103)000123(410)1234567890128") == "3103000123" * "4101234567890128"
+        # variable-length element strings are followed by a separator, except the last one
+        @test Barcodes.gs1_element_string("(10)ABC123(21)XYZ") == "10ABC123\x1d21XYZ"
+        @test Barcodes.gs1_element_string("(10)ABC123") == "10ABC123"
+        @test Barcodes.gs1_element_string("(01)09501101530003(10)ABC123(21)XYZ") ==
+            "0109501101530003" * "10ABC123\x1d21XYZ"
+        @test Barcodes.gs1_element_string("(240)ABC(10)123") == "240ABC\x1d10123"
+
+        # errors
+        @test_throws ArgumentError Barcodes.gs1_element_string("")
+        @test_throws ArgumentError Barcodes.gs1_element_string("0109501101530003")
+        @test_throws ArgumentError Barcodes.gs1_element_string("(01)09501101530003 (10)ABC")
+        @test_throws ArgumentError Barcodes.gs1_element_string("(0x)12")
+        @test_throws ArgumentError Barcodes.gs1_element_string("(10)")
+        @test_throws ArgumentError Barcodes.gs1_element_string("(01)123") # wrong length
+        @test_throws ArgumentError Barcodes.gs1_element_string("(01)0950110153000x") # not digits
+        @test_throws ArgumentError Barcodes.gs1_element_string("(31)123456") # AI should be 31nn
+        @test_throws ArgumentError Barcodes.gs1_element_string("(410)123456789012") # one digit short
+    end
+
+    @testset "Encoding and decoding" begin
+        # hand-checked: ( 105 + 1 * 102 + 2 * 1 + 3 * 9 + 4 * 50 + 5 * 11 + 6 * 1 + 7 * 53 + 8 * 0 + 9 * 3 ) % 103 = 71
+        @test Barcodes.encode("(01)09501101530003", :gs1128) ==
+            ["START C", "FNC 1", "01", "09", "50", "11", "01", "53", "00", "03", "CHECKSUM 71", "STOP"]
+        # the element string is the same as the human readable form
+        @test Barcodes.encode("0109501101530003", :gs1128) == Barcodes.encode("(01)09501101530003", :gs1128)
+
+        # FNC 1 as a separator, and the digits are in pairs between separators
+        # ( 104 + 1 * 102 + 2 * 17 + 3 * 16 + 4 * 33 + 5 * 34 + 6 * 35 + 7 * 17 + 8 * 18 + 9 * 19 + 10 * 102 + 11 * 18 + 12 * 17 + 13 * 56 + 14 * 57 + 15 * 58 ) % 103 = 5
+        @test Barcodes.encode("(10)ABC123(21)XYZ", :gs1128) ==
+            ["START B", "FNC 1", "1", "0", "A", "B", "C", "1", "2", "3", "FNC 1", "2", "1", "X", "Y", "Z", "CHECKSUM 5", "STOP"]
+        @test Barcodes.encode("(01)09501101530003(17)140704(10)ABC123", :gs1128) ==
+            [
+                "START C", "FNC 1", "01", "09", "50", "11", "01", "53", "00", "03", "17", "14", "07", "04",
+                "10", "CODE B", "A", "B", "C", "1", "2", "3", "CHECKSUM 45", "STOP"
+            ]
+
+        for msg in (
+            "(01)09501101530003", "(00)340123450000000015", "(21)12345678", "(37)5(10)12345",
+            "(10)ABC123(21)XYZ(01)09501101530003", "(01)09501101530003(10)AB(21)12", "(240)abc def~",
+        )
+            code = Barcodes.encode(msg, :gs1128)
+            @test code[1] in ("START B", "START C")
+            @test code[2] == "FNC 1"
+            es = Barcodes.gs1_element_string(msg)
+            @test Barcodes.decode(code, :gs1128) == es
+            # also with the other encoding types, since there is nothing but the FNC 1
+            @test Barcodes.decode(code, :code128) == es
+            pattern = Barcodes.barcode_pattern(msg, :gs1128)
+            @test pattern == Barcodes.barcode_pattern(code, :gs1128)
+            @test Barcodes.barcode_decode(pattern, :gs1128) == es
+            @test Barcodes.barcode_depattern(pattern, :gs1128) == code
+        end
+
+        # the quiet zones, START, FNC 1, 01, ..., CHECKSUM, STOP, and the end bar
+        pattern = Barcodes.barcode_pattern("(21)12", :gs1128)
+        @test startswith(
+            pattern,
+            "00000000000" * "11010011100" * "11110101110" *
+            Barcodes.CODE128_PATTERNS[21+1] * Barcodes.CODE128_PATTERNS[12+1]
+        )
+        @test endswith(pattern, "11000111010" * "11" * "00000000000")
+
+        # errors
+        @test_throws ArgumentError Barcodes.encode("", :gs1128)
+        @test_throws ArgumentError Barcodes.encode("ABC", :gs1128) # no Application Identifier
+        @test_throws ArgumentError Barcodes.encode("\x1d12", :gs1128)
+        @test_throws ArgumentError Barcodes.encode("12\x1d", :gs1128)
+        @test_throws ArgumentError Barcodes.encode("12\x1d\x1d34", :gs1128)
+        @test_throws ArgumentError Barcodes.encode("12é", :gs1128) # no FNC 4 in GS1-128
+        @test_throws ArgumentError Barcodes.encode("12\x01", :gs1128)
+        @test_throws ArgumentError Barcodes.encode("(01)123", :gs1128)
+        # not a GS1-128
+        @test_throws ArgumentError Barcodes.decode(Barcodes.encode("1234", :code128), :gs1128)
+        @test_throws ArgumentError Barcodes.barcode_decode(
+            Barcodes.barcode_pattern("1234", :code128), :gs1128
+        )
+        @test_throws ArgumentError Barcodes.barcode_depattern(
+            Barcodes.barcode_pattern("1234", :code128), :gs1128
+        )
+    end
+
+    @testset "FNC 1 in the other encoding types" begin
+        # FNC 1 right after START is not part of the message, but in any other place it is a separator
+        values(names) = Barcodes._parse_names(names)
+        @test Barcodes.decode(["START C", "FNC 1", "12", "34", "CHECKSUM", "STOP"], :code128) == "1234"
+        @test Barcodes.decode(["START C", "12", "FNC 1", "34", "CHECKSUM", "STOP"], :code128) == "12\x1d34"
+        @test Barcodes.decode(["START B", "A", "FNC 1", "B", "CHECKSUM", "STOP"], :code128) == "A\x1dB"
+        @test Barcodes.decode(["START A", "A", "FNC 1", "B", "CHECKSUM", "STOP"], :code128) == "A\x1dB"
+        @test Barcodes.decode(["START B", "A", "CODE C", "FNC 1", "12", "CHECKSUM", "STOP"], :code128) == "A\x1d12"
+    end
+
+    @testset "Code128 type" begin
+        b = Barcodes.Code128("(01)09501101530003(10)AB", :gs1128)
+        @test Barcodes.isgs1128(b)
+        @test Barcodes.message(b) == "0109501101530003" * "10AB"
+        @test Barcodes.message(Barcodes.Code128("(10)AB(21)CD", :gs1128)) == "10AB\x1d21CD"
+        @test Barcodes.Code128(Barcodes.codenames(b)) == b
+        @test Barcodes.Code128(b.values) == b
+        @test Barcodes.Code128("0109501101530003" * "10AB", :gs1128) == b
+        @test Barcodes.barcode_pattern(b) == Barcodes.barcode_pattern("(01)09501101530003(10)AB", :gs1128)
+        @test Barcodes.checksum(b) == Barcodes._checksum(b.values)
+        @test Barcodes.subtype(b) == :code128 # it uses the code sets C and B
+        @test Barcodes.subtype(Barcodes.Code128("(21)12345678", :gs1128)) == :code128c
+        @test !Barcodes.isgs1128(Barcodes.Code128("0109501101530003"))
+        @test Barcodes.Code128("0109501101530003") != Barcodes.Code128("0109501101530003", :gs1128)
+
+        @test occursin("Code128(\"0109501101530003" , sprint(show, b))
+        @test occursin(":gs1128)", sprint(show, b))
+        @test occursin("GS1-128", sprint(show, MIME("text/plain"), b))
+        @test occursin("GS1-128", sprint(show, MIME("text/plain"), b; context = :detailed => true))
+        @test !occursin("GS1-128", sprint(show, MIME("text/plain"), Barcodes.Code128("123456")))
+    end
+
+    @testset "GS1-128 is the shortest" begin
+        # independent search: the minimum number of symbols (without START, CHECKSUM, and STOP), where
+        # FNC 1 (represented by 0) is in all the code sets and breaks the pairs of digits
+        function min_symbols_gs1(chars)
+            n = length(chars)
+            isa_(c) = c ≤ 95
+            isb_(c) = c ≥ 32
+            dig(c) = 48 ≤ c ≤ 57
+            queue = [(1, 1, k) for k in 1:3] # (cost, position, code set); the START
+            seen = Set{Tuple{Int,Int}}()
+            while !isempty(queue)
+                sort!(queue)
+                cost, i, k = popfirst!(queue)
+                (i, k) in seen && continue
+                push!(seen, (i, k))
+                i == n + 1 && return cost
+                c = chars[i]
+                if c == 0
+                    push!(queue, (cost + 1, i + 1, k))
+                else
+                    k == 1 && isa_(c) && push!(queue, (cost + 1, i + 1, k))
+                    k == 2 && isb_(c) && push!(queue, (cost + 1, i + 1, k))
+                    k == 1 && isb_(c) && push!(queue, (cost + 2, i + 1, k)) # SHIFT
+                    k == 2 && isa_(c) && push!(queue, (cost + 2, i + 1, k)) # SHIFT
+                    if k == 3 && i < n && dig(c) && dig(chars[i+1])
+                        push!(queue, (cost + 1, i + 2, k))
+                    end
+                end
+                for j in 1:3
+                    j != k && push!(queue, (cost + 1, i, j)) # CODE
+                end
+            end
+        end
+
+        rng = TestLCG(0x00006511)
+        alphabet = vcat(collect('0':'9'), collect('0':'9'), collect('0':'9'), collect('A':'Z'), collect('a':'e'), [' ', '~', '#'])
+        for _ in 1:300
+            nelements = 1 + nextint!(rng) % 4
+            elements = map(1:nelements) do _
+                len = 1 + nextint!(rng) % 8
+                String([alphabet[1 + nextint!(rng) % length(alphabet)] for _ in 1:len])
+            end
+            # the first character should be a digit
+            elements[1] = string('0' + nextint!(rng) % 10) * elements[1]
+            msg = join(elements, '\x1d')
+            code = Barcodes.encode(msg, :gs1128)
+            chars = [c == '\x1d' ? 0 : Int(c) - 0 for c in msg]
+            # the (leading) FNC 1 is one more symbol
+            @test length(code) - 2 == min_symbols_gs1(pushfirst!(chars, 0))
+            @test Barcodes.decode(code, :gs1128) == msg
+            @test Barcodes.message(Barcodes.Code128(msg, :gs1128)) == msg
+        end
+    end
+end
+
 @testset "Decoding" begin
     for msg in (
         "ABC",

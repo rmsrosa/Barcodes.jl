@@ -51,6 +51,9 @@ end
 
 Generate the barcode pattern for the given `msg`, according to the encoding Code128.
 
+If `encoding_type` is set to `:gs1128`, the `msg` is the one described in [`encode`](@ref)
+for a GS1-128.
+
 If `encoding_type` is set to either `:code128a`, `:code128b`, or `:code128c`, it returns
 the encoding following the corresponding subtype. It throws an `ArgumentError` if the given
 `msg` is not suitable for encoding with the given subtype.
@@ -145,7 +148,9 @@ julia> Barcodes.barcode_depattern(pattern, :code128)
 """
 function barcode_depattern(pattern::AbstractString, encoding_type::Symbol)
     _check_encoding_type(encoding_type)
-    return _names(_values_from_pattern(pattern))
+    values = _values_from_pattern(pattern)
+    _check_values_type(values, encoding_type)
+    return _names(values)
 end
 
 """
@@ -167,7 +172,9 @@ julia> Barcodes.barcode_decode(pattern, :code128)
 """
 function barcode_decode(pattern::AbstractString, encoding_type::Symbol)
     _check_encoding_type(encoding_type)
-    return _decode_values(_values_from_pattern(pattern))
+    values = _values_from_pattern(pattern)
+    _check_values_type(values, encoding_type)
+    return _decode_values(values)
 end
 
 """

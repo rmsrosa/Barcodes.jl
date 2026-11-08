@@ -19,7 +19,7 @@ A `Code128` can be created from
 
 * a message: `Code128(msg)`, or `Code128(msg, encoding_type)`, with `encoding_type` being
   either `:code128` (the default, which chooses the code sets with the minimal number of symbols),
-  `:code128a`, `:code128b`, or `:code128c`;
+  `:code128a`, `:code128b`, or `:code128c`, or `:gs1128` for a GS1-128, see [`gs1_element_string`](@ref);
 * a vector with the names of the symbols, as returned by `Barcodes.encode`;
 * a vector with the values of the symbols.
 
@@ -159,6 +159,24 @@ function subtype(barcode::Code128)
 end
 
 """
+    isgs1128(barcode::Code128)
+
+Return `true` if the `barcode` is a GS1-128, that is, if it has the function character FNC 1
+right after the START symbol.
+
+# Examples
+
+```jldoctest
+julia> Barcodes.isgs1128(Barcodes.Code128("0109501101530003", :gs1128))
+true
+
+julia> Barcodes.isgs1128(Barcodes.Code128("0109501101530003"))
+false
+```
+"""
+isgs1128(barcode::Code128) = _is_gs1(barcode.values)
+
+"""
     barcode_pattern(barcode::Code128)
 
 Return the barcode pattern of the `barcode`, a string of 0's and 1's, as in
@@ -179,14 +197,17 @@ Base.hash(a::Code128, h::UInt) = hash(a.values, hash(:Code128, h))
 # Short one-line form. Used by `print`, `repr`, string interpolation, and when
 # the barcode is an element of an array or other container.
 function Base.show(io::IO, barcode::Code128)
-    print(io, "Code128(", repr(message(barcode)), ")")
+    print(io, "Code128(", repr(message(barcode)), isgs1128(barcode) ? ", :gs1128" : "", ")")
 end
 
 # Multi-line form. The REPL (and `display`) call this one for a top-level value.
 function Base.show(io::IO, ::MIME"text/plain", barcode::Code128)
     s = utf8block_pattern(barcode_pattern(barcode))
     if get(io, :detailed, false)
-        println(io, "Barcode type: ", uppercasefirst(string(subtype(barcode))))
+        println(
+            io, "Barcode type: ",
+            isgs1128(barcode) ? "GS1-128" : uppercasefirst(string(subtype(barcode)))
+        )
         print(io, "Message: ")
         printstyled(io, message(barcode), reverse = true)
         println(io)
@@ -197,7 +218,7 @@ function Base.show(io::IO, ::MIME"text/plain", barcode::Code128)
         println(io, "Barcode pattern:")
         print(io, s)
     else
-        print(io, "Code128: ")
+        print(io, isgs1128(barcode) ? "GS1-128: " : "Code128: ")
         printstyled(io, message(barcode), reverse = true)
         print(io, "\n\n", s)
     end

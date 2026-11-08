@@ -10,7 +10,7 @@ A pure-Julia [Code128](https://en.wikipedia.org/wiki/Code_128) barcode generator
 
 *This package is under development and is not yet registered.*
 
-Currently, only [Code128](https://en.wikipedia.org/wiki/Code_128) is implemented. For other barcodes, see [Related packages](#related-packages). 
+Currently, only [Code128](https://en.wikipedia.org/wiki/Code_128) is implemented, including the extended (Latin-1) characters and the [GS1-128](#gs1-128) variant. For other barcodes, see [Related packages](#related-packages). 
 
 The documentation, with a manual and the list of functions, is at <https://rmsrosa.github.io/Barcodes.jl/dev/>. The examples below are a quick tour. For more detailed information on [Code128](https://en.wikipedia.org/wiki/Code_128), see [The 128 code](http://grandzebu.net/informatique/codbar-en/code128.htm) and [How Barcodes Work](https://courses.cs.washington.edu/courses/cse370/01au/minirproject/BarcodeBattlers/barcodes.html)
 
@@ -28,9 +28,9 @@ The main decoding methods are
 * `barcode_depattern(pattern::AbstractString, encoding_type::Symbol)`: yields the `code` associated with the given barcode pattern `pattern`, according to the given `encoding_type`;
 * `barcode_decode(pattern::AbstractString, encoding_type::Symbol)`: yields the message encoded in the given barcode pattern `pattern`, according to the given `encoding_type`.
 
-Currently, only Code128 is implemented, for which one should set `encoding_type` to `:code128`. When encoding, it is also possible to set the `encoding_type` to either `:code128a`, `:code128b`, or `:code128c`, following the subtypes Code128A, Code128B or Code128C, respectively.
+The main encoding type is `:code128`. When encoding, it is also possible to set the `encoding_type` to `:code128a`, `:code128b`, or `:code128c`, following the subtypes Code128A, Code128B or Code128C, respectively, or to `:gs1128` for a [GS1-128](#gs1-128).
 
-If `:code128` is given, the method attempts to infer whether `code` can be encoded using `code128c` (only digits, with even length), `code128b`, or `code128a` subtypes, or it will then look for an optimized mixed-subtype encoding.
+If `:code128` is given, the method chooses the code sets (A, B, and C) and where to switch between them so that the barcode has the minimal number of symbols, and the same happens in `:gs1128`.
 
 ## Examples
 
@@ -116,7 +116,7 @@ julia> msg_back2 = Barcodes.barcode_decode(pattern, :code128) # directly from pa
 "12345678"
 ```
 
-Another representation of the barcode is with the widths of the bars and of the spaces between bars. The `START C` code pattern `11010011100`, for instance, can also be represented by `211232`, which are the widths of each bar and each space, with the correspondance `11 => 2`, `0 => 1`, `1 => 1`, `00 => 2`, `111 => 3`, `00 => 2`. Each code pattern always starts with `1`, ends with `0`, and has exactly three bars and three spaces. We can get this alternative representation for the barcode with the method `barcode_widths(pattern::AbstractString)`.
+Another representation of the barcode is with the widths of the bars and of the spaces between bars. The `START C` code pattern `11010011100`, for instance, can also be represented by `211232`, which are the widths of each bar and each space, with the correspondance `11 => 2`, `0 => 1`, `1 => 1`, `00 => 2`, `111 => 3`, `00 => 2`. Each symbol pattern always starts with `1`, ends with `0` (apart from the final bar that follows the `STOP` symbol), and has exactly three bars and three spaces. We can get this alternative representation for the barcode with the method `barcode_widths(pattern::AbstractString)`.
 
 ```julia
 julia> Barcodes.barcode_widths(pattern)
@@ -205,7 +205,7 @@ julia> Barcodes.encode("Héllo", :code128)
 
 Not all scanners support FNC4: some read `"Héllo"` as `"Hillo"`, ignoring the directive.
 
-The properties of the barcode are obtained with the functions `Barcodes.message`, `Barcodes.subtype`, `Barcodes.codenames`, `Barcodes.checksum`, and `Barcodes.barcode_pattern`. The `show` method is extended for a better visualization of the barcode content. Unicode blocks are used for a simple view of the code bars.
+The properties of the barcode are obtained with the functions `Barcodes.message`, `Barcodes.subtype`, `Barcodes.codenames`, `Barcodes.checksum`, `Barcodes.isgs1128`, and `Barcodes.barcode_pattern`. The `show` method is extended for a better visualization of the barcode content. Unicode blocks are used for a simple view of the code bars.
 
 ```julia
 julia> Barcodes.Code128("12345678")
@@ -231,17 +231,37 @@ Barcode pattern:
 
 ```
 
+### GS1-128
+
+A [GS1-128](https://www.gs1.org/standards/barcodes/application-identifiers) is a Code128 with the function character FNC1 right after the START symbol, and with the data organized in element strings, each one being an Application Identifier (AI) followed by its data. Use the encoding type `:gs1128`, and the FNC1 symbols, including the separators after the fields of variable length, are added for you:
+
+```julia
+julia> Barcodes.encode("(01)09501101530003", :gs1128)
+12-element Vector{String}:
+ "START C"
+ "FNC 1"
+ "01"
+ "09"
+ "50"
+ "11"
+ "01"
+ "53"
+ "00"
+ "03"
+ "CHECKSUM 71"
+ "STOP"
+
+julia> Barcodes.gs1_element_string("(10)ABC123(21)XYZ")
+"10ABC123\x1d21XYZ"
+```
+
+The message can be in the human readable form, with the AIs between parentheses, or the concatenation of the element strings, with the character GS (`'\x1d'`) as the separator, which is also what `decode` returns. There is no table of all the AIs: only the ones with a predefined length are known, and the data is not validated. See the [documentation](https://rmsrosa.github.io/Barcodes.jl/dev/manual/#GS1-128) for the details.
+
 ## Related packages
 
 This package is a pure Julia package initiated in 2021 and, so far, limited to Code128. There is now the barcode package [`ZXingCPP.jl`](https://github.com/rakeshksr/ZXingCPP.jl), created in 2025, which is a wrapper for the fairly complete C++ library [`zxing-cpp`](https://github.com/zxing-cpp/zxing-cpp). It seems to be well integrated with [Images.jl](https://github.com/JuliaImages/Images.jl) and [OpenCV.jl](https://github.com/JuliaImages/OpenCV.jl).
 
 Specifically for QR codes, there is also the package [`QRCoders.jl`](https://juliaimages.org/QRCoders.jl/dev/). 
-
-## To do
-
-- [ ] Register the package.
-
-- [ ] It can be improved to generate GS1-128 encoding, which uses Code128 with the FNC1 directive.
 
 ## License
 

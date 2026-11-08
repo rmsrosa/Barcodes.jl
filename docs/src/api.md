@@ -22,6 +22,13 @@ Barcodes.barcode_positions
 Barcodes.utf8block_pattern
 ```
 
+## GS1-128
+
+```@docs
+Barcodes.gs1_element_string
+Barcodes.isgs1128
+```
+
 ## Images
 
 ```@docs
