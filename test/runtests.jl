@@ -213,16 +213,138 @@ end
         end
     end
 
+    @testset "FNC4" begin
+        # hand-checked: a single FNC 4 adds 128 to the next character
+        @test Barcodes.encode("é", :code128b) == ["START B", "FNC 4", "i", "CHECKSUM 41", "STOP"]
+        @test Barcodes.encode("\u0080", :code128a) == ["START A", "FNC 4", "NUL", "CHECKSUM 23", "STOP"]
+        @test Barcodes.encode("é", :code128) == ["START B", "FNC 4", "i", "CHECKSUM 41", "STOP"]
+        @test Barcodes.encode("Héllo", :code128) ==
+            ["START B", "H", "FNC 4", "i", "l", "l", "o", "CHECKSUM 73", "STOP"]
+
+        # a single FNC 4 for each extended character is shorter than latching for two of them
+        @test Barcodes.encode("éÉ", :code128) ==
+            ["START B", "FNC 4", "i", "FNC 4", "I", "CHECKSUM 93", "STOP"]
+
+        # two FNC 4 latch the extended mode
+        @test Barcodes.encode("ÿÿÿÿ", :code128) ==
+            ["START B", "FNC 4", "FNC 4", "DEL", "DEL", "DEL", "DEL", "CHECKSUM 54", "STOP"]
+        @test Barcodes.encode("\u0080\u0081\u0082", :code128) ==
+            ["START A", "FNC 4", "FNC 4", "NUL", "SOH", "STX", "CHECKSUM 55", "STOP"]
+
+        # decoding
+        for (msg, type) in (
+            ("é", :code128b), ("\u0080", :code128a), ("Héllo", :code128), ("ÿÿÿÿ", :code128),
+            ("aéb", :code128b), ("12é34", :code128), ("ÀÉÎÕÜ", :code128a), ("¡¢£¤¥¦", :code128b),
+            ("\u0080a\u0081", :code128), ("é1234567é", :code128), ("12345678é", :code128),
+        )
+            code = Barcodes.encode(msg, type)
+            @test Barcodes.decode(code, type) == msg
+            @test Barcodes.message(Barcodes.Code128(msg, type)) == msg
+        end
+
+        # latching and unlatching the extended mode: an FNC 4 after the two that latch it
+        # gives a single non-extended character
+        let values = UInt8[104, 100, 100, 73, 100, 73, 73, 0, 106] # START B, FNC4 FNC4, "i", FNC4 "i", "i"
+            values[end-1] = Barcodes._checksum(values)
+            @test Barcodes._decode_values(values) == "éié"
+        end
+        let values = UInt8[104, 100, 100, 73, 100, 100, 73, 0, 106] # START B, FNC4 FNC4, "i", FNC4 FNC4, "i"
+            values[end-1] = Barcodes._checksum(values)
+            @test Barcodes._decode_values(values) == "éi"
+        end
+
+        # the extended mode survives a change of the code set, and is not applied to code set C
+        let values = UInt8[103, 101, 101, 33, 99, 12, 34, 100, 33, 0, 106] # START A, FNC4 FNC4, "A", C, "1234", B, "A"
+            values[end-1] = Barcodes._checksum(values)
+            @test Barcodes._decode_values(values) == "\u00c1" * "1234" * "\u00c1"
+        end
+
+        # FNC 4 can be followed by a SHIFT: FNC 4, SHIFT, "a" (from the code set B), then "A" in the code set A
+        let values = UInt8[103, 101, 98, 65, 33, 0, 106]
+            values[end-1] = Barcodes._checksum(values)
+            @test Barcodes._decode_values(values) == "\u00e1A"
+        end
+
+        # the type holds the values, and `message` gives them back
+        let b = Barcodes.Code128("Ça va? Très bien.")
+            @test Barcodes.message(b) == "Ça va? Très bien."
+            @test Barcodes.Code128(Barcodes.codenames(b)) == b
+            @test Barcodes.barcode_decode(Barcodes.barcode_pattern(b), :code128) == "Ça va? Très bien."
+        end
+
+        # the encoding is the shortest, with an independent search that counts FNC 4 symbols
+        # (a single FNC 4 sets a flag for the next character, and a second one in a row flips
+        # the latched extended mode)
+        function min_symbols_fnc4(chars)
+            n = length(chars)
+            isa_(b) = b ≤ 95
+            isb_(b) = b ≥ 32
+            dig(c) = 48 ≤ c ≤ 57
+            queue = [(1, 1, k, 0, 0) for k in 1:3] # (cost, position, code set, latched, flag)
+            seen = Set{NTuple{4,Int}}()
+            while !isempty(queue)
+                sort!(queue)
+                cost, i, k, lat, flag = popfirst!(queue)
+                (i, k, lat, flag) in seen && continue
+                push!(seen, (i, k, lat, flag))
+                i == n + 1 && flag == 0 && return cost
+                if i ≤ n
+                    c = chars[i]
+                    b = c & 0x7f
+                    x = c ≥ 128 ? 1 : 0
+                    if k ≤ 2 && (lat ⊻ flag) == x
+                        k == 1 && isa_(b) && push!(queue, (cost + 1, i + 1, k, lat, 0))
+                        k == 2 && isb_(b) && push!(queue, (cost + 1, i + 1, k, lat, 0))
+                        k == 1 && isb_(b) && push!(queue, (cost + 2, i + 1, k, lat, 0)) # SHIFT
+                        k == 2 && isa_(b) && push!(queue, (cost + 2, i + 1, k, lat, 0)) # SHIFT
+                    end
+                    if k == 3 && i < n && dig(c) && dig(chars[i+1])
+                        push!(queue, (cost + 1, i + 2, k, lat, flag))
+                    end
+                end
+                if flag == 0
+                    for j in 1:3
+                        j != k && push!(queue, (cost + 1, i, j, lat, 0)) # CODE
+                    end
+                end
+                if k ≤ 2
+                    # FNC 4: either set the flag, or flip the latched mode if the flag was set
+                    push!(queue, (cost + 1, i, k, flag == 1 ? 1 - lat : lat, 1 - flag))
+                end
+            end
+        end
+
+        rng = TestLCG(0x0000fa4c)
+        alphabet = vcat(
+            collect(Char(0):Char(31)), collect(' ':'~'), ['\x7f'], collect(Char(128):Char(255)),
+            repeat(collect('0':'9'), 6)
+        )
+        for _ in 1:300
+            len = 1 + nextint!(rng) % 14
+            msg = String([alphabet[1 + nextint!(rng) % length(alphabet)] for _ in 1:len])
+            code = Barcodes.encode(msg, :code128)
+            @test length(code) - 2 == min_symbols_fnc4(Int.(collect(msg))) # no CHECKSUM and STOP
+            @test Barcodes.decode(code, :code128) == msg
+            @test Barcodes.message(Barcodes.Code128(msg)) == msg
+        end
+    end
+
     @testset "Encoding errors" begin
         # empty message
         for t in (:code128, :code128a, :code128b, :code128c)
             @test_throws ArgumentError Barcodes.encode("", t)
         end
 
-        # non-ASCII message
+        # characters outside of Latin-1 (code points above U+00FF)
         for t in (:code128, :code128a, :code128b, :code128c)
-            @test_throws ArgumentError Barcodes.encode("é", t)
+            @test_throws ArgumentError Barcodes.encode("ā", t)
+            @test_throws ArgumentError Barcodes.encode("€", t)
         end
+
+        # Latin-1 characters in the subtype C, and in the wrong subtype
+        @test_throws ArgumentError Barcodes.encode("é", :code128c)
+        @test_throws ArgumentError Barcodes.encode("é", :code128a) # base character "i" is lowercase
+        @test_throws ArgumentError Barcodes.encode("\u00e9\x01", :code128b) # control character
 
         # characters not available in the chosen subtype
         @test_throws ArgumentError Barcodes.encode("abc", :code128a) # lowercase
@@ -614,7 +736,7 @@ end
             @test Barcodes.subtype(b) == :code128a
         end
 
-        @test_throws ArgumentError Barcodes.Code128("é")
+        @test_throws ArgumentError Barcodes.Code128("€")
         @test_throws ArgumentError Barcodes.Code128("")
     end
 

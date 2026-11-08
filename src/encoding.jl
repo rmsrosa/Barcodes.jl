@@ -15,13 +15,13 @@ function _check_encoding_type(encoding_type::Symbol)
     return nothing
 end
 
-# Characters of the message, as integers. Only ASCII characters can be encoded for now.
+# Characters of the message, as integers. Only the characters of ISO/IEC 8859-1 (Latin-1), that is,
+# the code points up to U+00FF, can be encoded. The ones above 127 need the directive FNC 4.
 function _message_chars(msg::AbstractString)
     isempty(msg) && throw(ArgumentError("msg cannot be empty"))
-    isascii(msg) || throw(
+    all(c -> c ≤ '\u00ff', msg) || throw(
         ArgumentError(
-            "`msg` must contain only ASCII characters " *
-            "(extended characters are not yet implemented)"
+            "`msg` must contain only Latin-1 characters (code points up to U+00FF)"
         )
     )
     return Int[Int(c) for c in msg]
@@ -34,24 +34,24 @@ function _frame(start::CodeSet, body::AbstractVector{<:Integer})
     return values
 end
 
-# Code128 encoding with subtype Code128A
+# Code128 encoding with subtype Code128A. The characters above 127 use FNC 4.
 function _encode_values_a(chars::Vector{Int})
-    all(≤(95), chars) || throw(
+    all(c -> c & 0x7f ≤ 95, chars) || throw(
         ArgumentError(
             "`msg` contains lowercase letters or DEL and cannot be encoded in subtype Code128A"
         )
     )
-    return _frame(SetA, _value_a.(chars))
+    return _encode_values_auto(chars, (SetA,))
 end
 
-# Code128 encoding with subtype Code128B
+# Code128 encoding with subtype Code128B. The characters above 127 use FNC 4.
 function _encode_values_b(chars::Vector{Int})
-    all(≥(32), chars) || throw(
+    all(c -> c & 0x7f ≥ 32, chars) || throw(
         ArgumentError(
             "`msg` contains control characters and cannot be encoded in subtype Code128B"
         )
     )
-    return _frame(SetB, _value_b.(chars))
+    return _encode_values_auto(chars, (SetB,))
 end
 
 # Code128 encoding with subtype Code128C
@@ -71,16 +71,18 @@ function _encode_values_c(chars::Vector{Int})
     return _frame(SetC, [10 * (chars[j] - 48) + chars[j+1] - 48 for j in 1:2:length(chars)])
 end
 
-# Can the character `c` be a data symbol in the code set number `k` (1 for A, 2 for B)?
-_in_set(c::Integer, k::Integer) = k == 1 ? c ≤ 95 : c ≥ 32
+# Can the base character `b` (that is, `c & 0x7f`, with 0 ≤ b ≤ 127) be a data symbol in the code
+# set number `k` (1 for A, 2 for B)?
+_in_set(b::Integer, k::Integer) = k == 1 ? b ≤ 95 : b ≥ 32
 
 _isdigit(c::Integer) = 48 ≤ c ≤ 57
 
 # Optimized Code128 (actually GS1-128) mixed-subtype encoding.
 #
 # The encoding with the minimal number of symbols is found with dynamic programming, over
-# the position in the message and the current code set (1, 2, 3 for A, B, C). The costs are
-# computed backwards, and the encoding is then built forward, choosing among the optimal
+# the position in the message and the current state, which is the code set (1, 2, 3 for A, B, C)
+# and whether the extended mode (two consecutive FNC 4) is on (1 for off, 2 for on). The costs
+# are computed backwards, and the encoding is then built forward, choosing among the optimal
 # options with the following preferences, which mimic the rules in "GS1 General Specifications,
 # Version 13, Issue 1, Jan-2013, Section 5.4.7.7. Use of Start, Code Set, and Shift symbols
 # to Minimize Symbol Length (Informative), pages 268 to 269.":
@@ -93,81 +95,142 @@ _isdigit(c::Integer) = 48 ≤ c ≤ 57
 # * for a character that is not in the current code set, use SHIFT if the next character
 #   returns to the current code set, and otherwise switch the code set (CODE A/B/C).
 #
-# Both ways of encoding the same message have the same length when there is a tie.
-function _encode_values_auto(chars::Vector{Int})
+# Characters above 127 are the base character (c - 128) with the extended mode: either a single
+# FNC 4 before the character (before the SHIFT, if there is one), or two FNC 4 to switch the
+# extended mode on (or off), which stays on across changes of the code set. The extended mode is
+# only switched when this is strictly better than using single FNC 4.
+#
+# The code sets in `allowed` are the only ones that can be used. Both ways of encoding the
+# same message have the same length when there is a tie.
+function _encode_values_auto(chars::Vector{Int}, allowed = (SetA, SetB, SetC))
     n = length(chars)
     INF = typemax(Int) ÷ 4
+    ok = [CodeSet(k) in allowed for k in 1:3]
 
-    # h[i, k]: minimal number of symbols to encode chars[i:n] starting in code set k, without
-    #          a CODE symbol before the character i
-    # f[i, k]: the same, but allowing for a CODE symbol before the character i
-    h = fill(INF, n, 3)
-    f = zeros(Int, n + 1, 3)
+    # State (k, e) is the node 3(e - 1) + k. The shortest cost `dist` of changing the state, at the
+    # same position of the message, by CODE symbols (cost 1) and by switching the extended mode
+    # with two FNC 4 (cost 2, only in the code sets A and B).
+    node(k, e) = 3 * (e - 1) + k
+    dist = fill(INF, 6, 6)
+    for e in 1:2, k in 1:3
+        dist[node(k, e), node(k, e)] = 0
+        ok[k] || continue
+        for j in 1:3
+            j != k && ok[j] && (dist[node(k, e), node(j, e)] = 1)
+        end
+        k ≤ 2 && (dist[node(k, e), node(k, 3 - e)] = 2)
+    end
+    for m in 1:6, a in 1:6, b in 1:6
+        dist[a, b] = min(dist[a, b], dist[a, m] + dist[m, b])
+    end
+
+    # h[i, k, e]: minimal number of symbols to encode chars[i:n] starting in the state (k, e),
+    #             without any change of state before the character i (but with a SHIFT and/or a
+    #             single FNC 4 for the character i, if needed)
+    # f[i, k, e]: the same, but allowing for changes of state before the character i
+    # f0[i, k, e]: the same, but only with CODE symbols before the character i
+    h = fill(INF, n, 3, 2)
+    f = zeros(Int, n + 1, 3, 2)
+    f0 = zeros(Int, n + 1, 3, 2)
 
     # run[i]: number of consecutive digits starting at the character i
     run = zeros(Int, n + 1)
 
     for i in n:-1:1
         c = chars[i]
+        x = c ≥ 128 ? 2 : 1 # extended mode of the character
+        b = c & 0x7f # base character
         run[i] = _isdigit(c) ? run[i+1] + 1 : 0
-        for k in 1:3
-            if k ≤ 2
-                if _in_set(c, k)
-                    h[i, k] = 1 + f[i+1, k]
-                elseif _in_set(c, 3 - k)
-                    h[i, k] = 2 + f[i+1, k] # SHIFT and the character
+        for e in 1:2
+            fnc4 = x == e ? 0 : 1 # a single FNC 4 is needed
+            for k in 1:2
+                ok[k] || continue
+                if _in_set(b, k)
+                    h[i, k, e] = fnc4 + 1 + f[i+1, k, e]
+                elseif ok[3-k] && _in_set(b, 3 - k)
+                    h[i, k, e] = fnc4 + 2 + f[i+1, k, e] # SHIFT and the character
                 end
-            elseif i < n && _isdigit(c) && _isdigit(chars[i+1])
-                h[i, k] = 1 + f[i+2, 3] # a pair of digits
+            end
+            if ok[3] && i < n && _isdigit(c) && _isdigit(chars[i+1])
+                h[i, 3, e] = 1 + f[i+2, 3, e] # a pair of digits
             end
         end
-        for k in 1:3
-            f[i, k] = min(h[i, k], 1 + minimum(h[i, j] for j in 1:3 if j != k))
+        for e in 1:2, k in 1:3
+            f0[i, k, e] = h[i, k, e]
+            for j in 1:3
+                j != k && (f0[i, k, e] = min(f0[i, k, e], 1 + h[i, j, e]))
+            end
+            f[i, k, e] = minimum(
+                dist[node(k, e), node(j, d)] + h[i, j, d] for j in 1:3 for d in 1:2
+            )
         end
     end
 
-    # Start code set
-    start_cost = [1 + f[1, k] for k in 1:3]
+    # Start code set, with the extended mode off
+    start_cost = [ok[k] ? 1 + f[1, k, 1] : INF for k in 1:3]
     best_start = minimum(start_cost)
     k = if run[1] ≥ 4 && start_cost[3] == best_start
         3
     else
         # among the best ones, prefer a code set that has the first character
         candidates = [k for k in (2, 1, 3) if start_cost[k] == best_start]
-        ind = findfirst(k -> k ≤ 2 && _in_set(chars[1], k), candidates)
+        ind = findfirst(k -> k ≤ 2 && _in_set(chars[1] & 0x7f, k), candidates)
         candidates[something(ind, 1)]
     end
     start = CodeSet(k)
+    e = 1
 
     body = UInt8[]
     i = 1
     while i ≤ n
         c = chars[i]
-        is_shift = k ≤ 2 && !_in_set(c, k)
+        x = c ≥ 128 ? 2 : 1
+        b = c & 0x7f
+
+        if f0[i, k, e] > f[i, k, e]
+            # the extended mode needs to be switched, on or off, before the character i
+            # (possibly after a change of code set): take the first step of a shortest path
+            j = findfirst(
+                j -> j != k && ok[j] && 1 + f[i, j, e] == f[i, k, e], (2, 1, 3)
+            )
+            if j !== nothing
+                latch_to = (2, 1, 3)[j]
+                push!(body, _latch_value(CodeSet(latch_to)))
+                k = latch_to
+            else
+                # two FNC 4 (we are in the code set A or B, because the sum of the cost of
+                # the other options is larger)
+                push!(body, _fnc4_value(CodeSet(k)), _fnc4_value(CodeSet(k)))
+                e = 3 - e
+            end
+            continue
+        end
+
+        is_shift = k ≤ 2 && !_in_set(b, k)
 
         # the best way of changing the code set before the character i, preferring, in case
         # of a tie, a code set that has the character i (rather than needing a SHIFT)
-        latch_cost = minimum(1 + h[i, j] for j in 1:3 if j != k)
-        latch_options = [j for j in (2, 1, 3) if j != k && 1 + h[i, j] == latch_cost]
+        latch_cost = minimum(1 + h[i, j, e] for j in 1:3 if j != k)
+        latch_options = [j for j in (2, 1, 3) if j != k && 1 + h[i, j, e] == latch_cost]
         ind = findfirst(
-            j -> j == 3 ? (i < n && _isdigit(c) && _isdigit(chars[i+1])) : _in_set(c, j),
+            j -> j == 3 ? (i < n && _isdigit(c) && _isdigit(chars[i+1])) : _in_set(b, j),
             latch_options
         )
         latch_to = latch_options[something(ind, 1)]
 
         # a run of an even number of four or more digits is better in code set C, if it
         # costs no more
-        prefer_c = k ≤ 2 && run[i] ≥ 4 && iseven(run[i]) && 1 + h[i, 3] == latch_cost
+        prefer_c = ok[3] && k ≤ 2 && run[i] ≥ 4 && iseven(run[i]) && 1 + h[i, 3, e] == latch_cost
         prefer_c && (latch_to = 3)
 
-        use_latch = if h[i, k] > f[i, k]
+        use_latch = if h[i, k, e] > f0[i, k, e]
             true # the CODE symbol is strictly better
-        elseif prefer_c && latch_cost == f[i, k]
+        elseif prefer_c && latch_cost == f0[i, k, e]
             true # a tie between the digits in the current code set and CODE C
-        elseif is_shift && latch_cost == f[i, k]
+        elseif is_shift && latch_cost == f0[i, k, e]
             # a tie between SHIFT and CODE: use SHIFT if the next character is back in
             # the current code set
-            !(i < n && _in_set(chars[i+1], k))
+            !(i < n && _in_set(chars[i+1] & 0x7f, k))
         else
             false
         end
@@ -178,12 +241,14 @@ function _encode_values_auto(chars::Vector{Int})
         elseif k == 3
             push!(body, 10 * (chars[i] - 48) + chars[i+1] - 48)
             i += 2
-        elseif is_shift
-            push!(body, SHIFT_VALUE)
-            push!(body, 3 - k == 1 ? _value_a(c) : _value_b(c))
-            i += 1
         else
-            push!(body, k == 1 ? _value_a(c) : _value_b(c))
+            x == e || push!(body, _fnc4_value(CodeSet(k))) # a single FNC 4
+            if is_shift
+                push!(body, SHIFT_VALUE)
+                push!(body, 3 - k == 1 ? _value_a(b) : _value_b(b))
+            else
+                push!(body, k == 1 ? _value_a(b) : _value_b(b))
+            end
             i += 1
         end
     end
@@ -224,8 +289,11 @@ encoding following the corresponding subtype. If `encoding_type` is `:code128`, 
 return an optimized encoding, possibly mixing different subtypes, with the minimal number
 of symbols.
 
-The `msg` needs to be a non-empty string of ascii characteres to be encoded, otherwise the
-method throws an `ArgumentError`.
+The `msg` needs to be a non-empty string of Latin-1 characters (ISO/IEC 8859-1, that is, code
+points up to `'\u00ff'`) to be encoded, otherwise the method throws an `ArgumentError`. The
+characters above `'\x7f'` are encoded with the directive FNC 4, either one for each character,
+or two to switch an extended mode on, whatever uses fewer symbols. In the subtypes
+`:code128a` and `:code128b`, the characters should be those of the subtype, possibly with FNC 4.
 
 # Examples
 

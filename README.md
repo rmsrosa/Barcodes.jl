@@ -179,6 +179,24 @@ The `Code128` type stores a barcode as the vector of the integer values (from 0 
 
 A `Code128` can be created from a message (a `String`), from a code (a `Vector{String}`, as returned by `encode`), or from the values of the symbols (a vector of integers). When created from a message, with the default `:code128` encoding type, the code sets (A, B, C) and the SHIFT and CODE symbols are chosen so that the barcode has the minimal number of symbols, following the conventions of the GS1 General Specifications when there is more than one way to do it.
 
+The message can have any character of ISO/IEC 8859-1 (Latin-1), that is, with code points up to `U+00FF`. The characters above `U+007F` are encoded with the directive FNC4, either a single one before each such character, or two in a row to switch an extended mode on (and, later, off), whichever gives the shortest barcode:
+
+```julia
+julia> Barcodes.encode("Héllo", :code128)
+9-element Vector{String}:
+ "START B"
+ "H"
+ "FNC 4"
+ "i"
+ "l"
+ "l"
+ "o"
+ "CHECKSUM 73"
+ "STOP"
+```
+
+Not all scanners support FNC4: some read `"Héllo"` as `"Hillo"`, ignoring the directive.
+
 The properties of the barcode are obtained with the functions `Barcodes.message`, `Barcodes.subtype`, `Barcodes.codenames`, `Barcodes.checksum`, and `Barcodes.barcode_pattern`. The `show` method is extended for a better visualization of the barcode content. Unicode blocks are used for a simple view of the code bars.
 
 ```julia
@@ -213,7 +231,7 @@ Specifically for QR codes, there is also the package [`QRCoders.jl`](https://jul
 
 ## To do
 
-- [ ] Encoding in Code128 is not yet complete. It needs to be able to handle the directive FNC4 to access iso-latin ISO/IEC 8859-1 characters.
+- [x] Encoding in Code128 handles the directive FNC4, to access the extended (ISO/IEC 8859-1, Latin-1) characters.
 
 - [ ] It can also be improved to generate GS1-128 encoding, which uses Code128 with the FNC1 directive.
 

@@ -16,6 +16,11 @@ The three code sets of Code128.
 const STOP_VALUE = 106
 const SHIFT_VALUE = 98
 
+# Value of FNC 4 in the code sets A (101) and B (100); there is no FNC 4 in the code set C.
+# One FNC 4 adds 128 to the code of the next data character (extended ASCII, ISO/IEC 8859-1),
+# and two consecutive FNC 4 switch the extended mode on, or off, for all the following characters.
+_fnc4_value(set::CodeSet) = set == SetA ? 101 : 100
+
 # Value of the START symbol of the given code set: 103, 104, 105
 _start_value(set::CodeSet) = 102 + Int(set)
 
@@ -178,14 +183,27 @@ function _decode_values(values::AbstractVector{<:Integer})
     _check_framing(values)
     io = IOBuffer()
     set = active = _start_set(values[1])
+    extended = false # extended mode latched by two consecutive FNC 4
+    next_extended = false # a single FNC 4 waiting for the next data character
     for i in 2:length(values)-2
         v = Int(values[i])
         if active == SetC
             v ≤ 99 && print(io, lpad(v, 2, '0'))
         elseif v ≤ 95
-            print(io, active == SetA ? _char_a(v) : _char_b(v))
+            c = Int(active == SetA ? _char_a(v) : _char_b(v))
+            extended ⊻ next_extended && (c += 128)
+            next_extended = false
+            print(io, Char(c))
+        elseif v == _fnc4_value(active)
+            # a second FNC 4 in a row latches (or unlatches) the extended mode
+            if next_extended
+                extended = !extended
+                next_extended = false
+            else
+                next_extended = true
+            end
         end
-        # the other symbols (SHIFT, CODE A/B/C, FNC 1-4) do not have a character
+        # the other symbols (SHIFT, CODE A/B/C, FNC 1-3) do not have a character
         set, active = _step(set, active, v)
     end
     return String(take!(io))
