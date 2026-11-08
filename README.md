@@ -2,6 +2,9 @@
 
 [![CI](https://github.com/rmsrosa/barcodes.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/rmsrosa/barcodes.jl/actions/workflows/CI.yml)
 [![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://rmsrosa.github.io/barcodes.jl/dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) ![GitHub repo size](https://img.shields.io/github/repo-size/rmsrosa/Barcodes.jl)
+
+![Logo](img/barcodesjl_ink.svg)
 
 A [Code128](https://en.wikipedia.org/wiki/Code_128) barcode generator (see also [The 128 code](http://grandzebu.net/informatique/codbar-en/code128.htm) and [How Barcodes Work](https://courses.cs.washington.edu/courses/cse370/01au/minirproject/BarcodeBattlers/barcodes.html)).
 
@@ -236,15 +239,9 @@ Specifically for QR codes, there is also the package [`QRCoders.jl`](https://jul
 
 ## To do
 
-- [x] Encoding in Code128 handles the directive FNC4, to access the extended (ISO/IEC 8859-1, Latin-1) characters.
-
-- [ ] It can also be improved to generate GS1-128 encoding, which uses Code128 with the FNC1 directive.
-
-- [ ] Add Documentation and simplify README.
-
 - [ ] Register the package.
 
-- [ ] There are plenty of other barcode formats that can be implemented here in pure julia, both 1D and 2D, such as QR code, but otherwise see the packages mentioned in [Related packages](#related-packages).
+- [ ] It can be improved to generate GS1-128 encoding, which uses Code128 with the FNC1 directive.
 
 ## License
 
