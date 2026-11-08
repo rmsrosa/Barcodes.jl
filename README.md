@@ -1,18 +1,18 @@
 # Barcodes
 
-[![CI](https://github.com/rmsrosa/barcodes.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/rmsrosa/barcodes.jl/actions/workflows/CI.yml)
-[![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://rmsrosa.github.io/barcodes.jl/dev/)
+[![CI](https://github.com/rmsrosa/Barcodes.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/rmsrosa/Barcodes.jl/actions/workflows/CI.yml)
+[![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://rmsrosa.github.io/Barcodes.jl/dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) ![GitHub repo size](https://img.shields.io/github/repo-size/rmsrosa/Barcodes.jl)
 
 ![Logo](img/barcodesjl_ink.svg)
 
-A [Code128](https://en.wikipedia.org/wiki/Code_128) barcode generator (see also [The 128 code](http://grandzebu.net/informatique/codbar-en/code128.htm) and [How Barcodes Work](https://courses.cs.washington.edu/courses/cse370/01au/minirproject/BarcodeBattlers/barcodes.html)).
+A pure-Julia [Code128](https://en.wikipedia.org/wiki/Code_128) barcode generator.
 
-This package is under development and is not yet registered.
+*This package is under development and is not yet registered.*
 
-Currently, only code128 is being implemented, but other barcodes might be implemented in the future. Contributions are welcome!
+Currently, only [Code128](https://en.wikipedia.org/wiki/Code_128) is implemented. For other barcodes, see [Related packages](#related-packages). 
 
-The documentation, with a manual and the list of functions, is at <https://rmsrosa.github.io/barcodes.jl/dev/>. The examples below are a quick tour.
+The documentation, with a manual and the list of functions, is at <https://rmsrosa.github.io/Barcodes.jl/dev/>. The examples below are a quick tour. For more detailed information on [Code128](https://en.wikipedia.org/wiki/Code_128), see [The 128 code](http://grandzebu.net/informatique/codbar-en/code128.htm) and [How Barcodes Work](https://courses.cs.washington.edu/courses/cse370/01au/minirproject/BarcodeBattlers/barcodes.html)
 
 ## Methods
 

@@ -5,7 +5,7 @@ A pure [Julia](https://julialang.org) generator of [Code 128](https://en.wikiped
 !!! note
     This package is under development and is not yet registered. Install it with
     ```julia
-    julia> using Pkg; Pkg.add(url = "https://github.com/rmsrosa/barcodes.jl")
+    julia> using Pkg; Pkg.add(url = "https://github.com/rmsrosa/Barcodes.jl")
     ```
 
 With it, you can

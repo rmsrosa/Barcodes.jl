@@ -10,7 +10,7 @@ makedocs(;
     sitename = "Barcodes.jl",
     format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", "false") == "true",
-        canonical = "https://rmsrosa.github.io/barcodes.jl",
+        canonical = "https://rmsrosa.github.io/Barcodes.jl",
         edit_link = "main",
     ),
     pages = [
@@ -21,4 +21,4 @@ makedocs(;
     doctest = true,
 )
 
-deploydocs(; repo = "github.com/rmsrosa/barcodes.jl", devbranch = "main")
+deploydocs(; repo = "github.com/rmsrosa/Barcodes.jl", devbranch = "main")
