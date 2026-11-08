@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="referrer" content="no-referrer"/><title>Manual · Barcodes.jl</title><meta name="title" content="Manual · Barcodes.jl"/><meta property="og:title" content="Manual · Barcodes.jl"/><meta property="twitter:title" content="Manual · Barcodes.jl"/><meta name="description" content="Documentation for Barcodes.jl."/><meta property="og:description" content="Documentation for Barcodes.jl."/><meta property="twitter:description" content="Documentation for Barcodes.jl."/><meta property="og:url" content="https://rmsrosa.github.io/Barcodes.jl/manual/"/><meta property="twitter:url" content="https://rmsrosa.github.io/Barcodes.jl/manual/"/><link rel="canonical" href="https://rmsrosa.github.io/Barcodes.jl/manual/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.63.2/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Barcodes.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Manual</a><ul class="internal"><li><a class="tocitem" href="#From-a-message-to-a-barcode"><span>From a message to a barcode</span></a></li><li><a class="tocitem" href="#Code-sets"><span>Code sets</span></a></li><li><a class="tocitem" href="#Extended-characters"><span>Extended characters</span></a></li><li><a class="tocitem" href="#From-a-barcode-back-to-a-message"><span>From a barcode back to a message</span></a></li><li><a class="tocitem" href="#Widths-of-bars-and-spaces"><span>Widths of bars and spaces</span></a></li><li><a class="tocitem" href="#The-Code128-type"><span>The <code>Code128</code> type</span></a></li></ul></li><li><a class="tocitem" href="../api/">API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Manual</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Manual</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/rmsrosa/Barcodes.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/rmsrosa/Barcodes.jl/blob/main/docs/src/manual.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Manual"><a class="docs-heading-anchor" href="#Manual">Manual</a><a id="Manual-1"></a><a class="docs-heading-anchor-permalink" href="#Manual" title="Permalink"></a></h1><p>A Code 128 barcode is a sequence of <em>symbols</em>: a <code>START</code> symbol, the data symbols, a <code>CHECKSUM</code>, and a <code>STOP</code>. Each symbol is drawn as three bars and three spaces, in a total width of 11 modules. This package works with the sequence of symbols in two ways: as a vector of <em>names</em> such as <code>&quot;START C&quot;</code> or <code>&quot;CODE B&quot;</code>, which is easy to read, and as a vector of <em>values</em> (from 0 to 106), which is what enters the checksum and is what the <a href="../api/#Barcodes.Code128"><code>Barcodes.Code128</code></a> type stores.</p><h2 id="From-a-message-to-a-barcode"><a class="docs-heading-anchor" href="#From-a-message-to-a-barcode">From a message to a barcode</a><a id="From-a-message-to-a-barcode-1"></a><a class="docs-heading-anchor-permalink" href="#From-a-message-to-a-barcode" title="Permalink"></a></h2><p><a href="../api/#Barcodes.encode"><code>Barcodes.encode</code></a> gives the names of the symbols of the barcode of a message, and <a href="../api/#Barcodes.barcode_pattern-Tuple{AbstractVector{&lt;:AbstractString}, Symbol}"><code>Barcodes.barcode_pattern</code></a> gives the pattern of bars (<code>1</code>) and spaces (<code>0</code>), with the quiet zones on both sides:</p><pre><code class="language-julia-repl hljs">julia&gt; zip_code = replace(&quot;12.345-678&quot;, r&quot;\s|\.|\-&quot; =&gt; &quot;&quot;)
+&quot;12345678&quot;
+
+julia&gt; code = Barcodes.encode(zip_code, :code128)
+7-element Vector{String}:
+ &quot;START C&quot;
+ &quot;12&quot;
+ &quot;34&quot;
+ &quot;56&quot;
+ &quot;78&quot;
+ &quot;CHECKSUM 47&quot;
+ &quot;STOP&quot;
+
+julia&gt; pattern = Barcodes.barcode_pattern(zip_code, :code128)
+&quot;00000000000110100111001011001110010001011000111000101101100001010010001110110110001110101100000000000&quot;
+
+julia&gt; Barcodes.barcode_pattern(code, :code128) == pattern
+true</code></pre><p>The pattern can be turned into an image with <a href="../api/#Barcodes.barcode_img"><code>Barcodes.barcode_img</code></a>, which can then be saved with <a href="https://github.com/JuliaIO/FileIO.jl">FileIO</a> in any format that it supports, or resized with <a href="https://juliaimages.org/stable/">JuliaImages</a>:</p><pre><code class="language-julia hljs">using Barcodes, Images
+pattern = Barcodes.barcode_pattern(&quot;12345678&quot;, :code128)
+img = Barcodes.barcode_img(pattern)</code></pre><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMoAAABoCAAAAACV2jCRAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAQlJREFUeAHdwdFpYEkQRTE1nPxTruVhzPx4E7hSZ0Vm5E8P5zk8n8NzHg7P5/Ccz3Mezuf5nM9zHs7D+fGc5/Ccz/M5D+fhfJ7Pec7D+UtmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZmZEZm5E/ncz7n1+H8OL/Oj8P5df45nM/553A+58f5cT7n1/lxOP8nM/4DNZIuihuhpFUAAAAASUVORK5C"><pre><code class="language-julia hljs">julia&gt; using FileIO
+
+julia&gt; FileIO.save(&quot;zipcode.png&quot;, img)</code></pre><h2 id="Code-sets"><a class="docs-heading-anchor" href="#Code-sets">Code sets</a><a id="Code-sets-1"></a><a class="docs-heading-anchor-permalink" href="#Code-sets" title="Permalink"></a></h2><p>Code 128 has three code sets, A, B, and C. The set C encodes two digits per symbol; the set B has the printable ASCII characters (from space to <code>~</code> and DEL); and the set A has the upper case letters, the digits, the punctuation, and the control characters (from NUL to US). The symbols <code>CODE A</code>, <code>CODE B</code>, and <code>CODE C</code> switch from one set to another, and <code>SHIFT</code> takes a single character from the other set between A and B.</p><p>The encoding type <code>:code128</code> chooses the sets, and where to switch them, so that the barcode has the minimal number of symbols. If there is more than one way of doing that, it follows the conventions of the GS1 General Specifications.</p><pre><code class="language-julia-repl hljs">julia&gt; msg = &quot;\x02abc1234\x03&quot;;
+
+julia&gt; Barcodes.encode(msg, :code128)
+13-element Vector{String}:
+ &quot;START A&quot;
+ &quot;STX&quot;
+ &quot;CODE B&quot;
+ &quot;a&quot;
+ &quot;b&quot;
+ &quot;c&quot;
+ &quot;CODE C&quot;
+ &quot;12&quot;
+ &quot;34&quot;
+ &quot;CODE A&quot;
+ &quot;ETX&quot;
+ &quot;CHECKSUM 87&quot;
+ &quot;STOP&quot;</code></pre><p>To force one of the sets, use <code>:code128a</code>, <code>:code128b</code>, or <code>:code128c</code>. An <code>ArgumentError</code> is thrown if the message cannot be encoded in the chosen set:</p><pre><code class="language-julia-repl hljs">julia&gt; Barcodes.encode(&quot;ABC&quot;, :code128a)
+6-element Vector{String}:
+ &quot;START A&quot;
+ &quot;A&quot;
+ &quot;B&quot;
+ &quot;C&quot;
+ &quot;CHECKSUM 0&quot;
+ &quot;STOP&quot;
+
+julia&gt; Barcodes.encode(&quot;abc&quot;, :code128a)
+ERROR: ArgumentError: `msg` contains lowercase letters or DEL and cannot be encoded in subtype Code128A
+[...]</code></pre><h2 id="Extended-characters"><a class="docs-heading-anchor" href="#Extended-characters">Extended characters</a><a id="Extended-characters-1"></a><a class="docs-heading-anchor-permalink" href="#Extended-characters" title="Permalink"></a></h2><p>The message can have any character of ISO/IEC 8859-1 (Latin-1), that is, with code points up to <code>U+00FF</code>. The characters above <code>U+007F</code> are encoded with the directive <code>FNC 4</code>: one <code>FNC 4</code> before a character adds 128 to its code, and two <code>FNC 4</code> in a row switch an extended mode on, until two more of them switch it off. The encoder uses whichever gives the shortest barcode:</p><pre><code class="language-julia-repl hljs">julia&gt; Barcodes.encode(&quot;Héllo&quot;, :code128)
+9-element Vector{String}:
+ &quot;START B&quot;
+ &quot;H&quot;
+ &quot;FNC 4&quot;
+ &quot;i&quot;
+ &quot;l&quot;
+ &quot;l&quot;
+ &quot;o&quot;
+ &quot;CHECKSUM 73&quot;
+ &quot;STOP&quot;
+
+julia&gt; Barcodes.encode(&quot;ÿÿÿÿ&quot;, :code128)
+9-element Vector{String}:
+ &quot;START B&quot;
+ &quot;FNC 4&quot;
+ &quot;FNC 4&quot;
+ &quot;DEL&quot;
+ &quot;DEL&quot;
+ &quot;DEL&quot;
+ &quot;DEL&quot;
+ &quot;CHECKSUM 54&quot;
+ &quot;STOP&quot;</code></pre><p>Not every barcode reader supports <code>FNC 4</code>. Some of them simply ignore it, and read <code>&quot;Héllo&quot;</code> as <code>&quot;Hillo&quot;</code>. Characters outside of Latin-1 cannot be encoded.</p><h2 id="From-a-barcode-back-to-a-message"><a class="docs-heading-anchor" href="#From-a-barcode-back-to-a-message">From a barcode back to a message</a><a id="From-a-barcode-back-to-a-message-1"></a><a class="docs-heading-anchor-permalink" href="#From-a-barcode-back-to-a-message" title="Permalink"></a></h2><p>The inverse of each step above is available:</p><pre><code class="language-julia-repl hljs">julia&gt; code_back = Barcodes.barcode_depattern(pattern, :code128);
+
+julia&gt; code_back == code
+true
+
+julia&gt; Barcodes.decode(code_back, :code128)
+&quot;12345678&quot;
+
+julia&gt; Barcodes.barcode_decode(pattern, :code128)
+&quot;12345678&quot;</code></pre><p>The pattern is checked along the way: the symbols should be valid, with a <code>START</code> at the beginning and a <code>STOP</code> at the end, and the checksum should match. Otherwise, an <code>ArgumentError</code> is thrown.</p><h2 id="Widths-of-bars-and-spaces"><a class="docs-heading-anchor" href="#Widths-of-bars-and-spaces">Widths of bars and spaces</a><a id="Widths-of-bars-and-spaces-1"></a><a class="docs-heading-anchor-permalink" href="#Widths-of-bars-and-spaces" title="Permalink"></a></h2><p>Another representation of the barcode is with the widths of the bars and of the spaces between them. The pattern <code>11010011100</code> of <code>START C</code>, for instance, is represented by <code>211232</code>: the bars and spaces <code>11</code>, <code>0</code>, <code>1</code>, <code>00</code>, <code>111</code>, <code>00</code> have widths 2, 1, 1, 2, 3, 2. Each symbol has exactly three bars and three spaces. This representation is given by <a href="../api/#Barcodes.barcode_widths"><code>Barcodes.barcode_widths</code></a>, and the positions and the widths of the bars by <a href="../api/#Barcodes.barcode_positions"><code>Barcodes.barcode_positions</code></a>, which is useful to draw the barcode with a plotting package:</p><pre><code class="language-julia-repl hljs">julia&gt; Barcodes.barcode_widths(pattern)
+&quot;211232112232131123331121241112133121233111&quot;
+
+julia&gt; x, w = Barcodes.barcode_positions(pattern);
+
+julia&gt; length(x) == length(w)
+true
+
+julia&gt; (x[1], w[1])
+(12, 2)</code></pre><pre><code class="language-julia hljs">julia&gt; using Plots
+
+julia&gt; plot(
+           [x&#39;; x&#39; + w&#39;], ones(2, length(x)), color = :black, fill = true,
+           xlims = (1, length(pattern)), ylims = (0, 1), border = :none, legend = nothing
+       )</code></pre><h2 id="The-Code128-type"><a class="docs-heading-anchor" href="#The-Code128-type">The <code>Code128</code> type</a><a id="The-Code128-type-1"></a><a class="docs-heading-anchor-permalink" href="#The-Code128-type" title="Permalink"></a></h2><p>A <a href="../api/#Barcodes.Code128"><code>Barcodes.Code128</code></a> stores a barcode as the vector of the values of its symbols. It can be created from a message, from the names of the symbols, or from the values themselves, and the other properties are obtained with functions, so the representation is always consistent:</p><pre><code class="language-julia-repl hljs">julia&gt; b = Barcodes.Code128(&quot;Héllo&quot;);
+
+julia&gt; println(b)
+Code128(&quot;Héllo&quot;)
+
+julia&gt; Barcodes.message(b)
+&quot;Héllo&quot;
+
+julia&gt; Barcodes.subtype(b)
+:code128b
+
+julia&gt; Barcodes.checksum(b)
+73
+
+julia&gt; Barcodes.Code128(Barcodes.codenames(b)) == b
+true
+
+julia&gt; Barcodes.Code128(b.values) == b
+true</code></pre><p>At the REPL, a <code>Code128</code> is displayed with a simple drawing of the bars, using Unicode blocks:</p><pre><code class="language-julia hljs">julia&gt; Barcodes.Code128(&quot;12345678&quot;)
+Code128: 12345678
+
+     ▐▌▌▐█ ▌█ █▌▐ ▐▐▌ █▌ ▌█▐▌ ▐▐ ▌ █▌█▐▌ █▌▌█      </code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../api/">API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.20.0 on <span class="colophon-date" title="Sunday 8 November 2026 11:34">Sunday 8 November 2026</span>. Using Julia version 1.13.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
